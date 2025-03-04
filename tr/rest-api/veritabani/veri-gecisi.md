@@ -1,28 +1,27 @@
-# REST API Veri Kaldırma
+# Veri Geçişi
 
-<mark style="color:green;">`POST`</mark> `https://api.pxserv.net/database/removeData`
+<mark style="color:green;">`POST`</mark> `https://api.pxserv.net/database/toggleData`
 
-Bu endpoint, PxServ proje veritabanına veri kaldırmayı sağlar
+Bu endpoint, PxServ proje veritabanındaki veriyi 0 ile 1 arasında geçiş yaptırmanıza olanak sağlar
 
 **Headers**
 
-| Anahtar         | Değer              |
+| Key             | Value              |
 | --------------- | ------------------ |
 | Content-Type    | `application/json` |
-| apikey          | `Proje API Keyi`   |
+| apikey          | `Project API Key`  |
 | Accept-Language | `tr` \| `en`       |
 
 **Body**
 
-| Anahtar | Tip    | Açıklama      |
-| ------- | ------ | ------------- |
-| `key`   | string | Veri anahtarı |
+| Key   | Type   | Description |
+| ----- | ------ | ----------- |
+| `key` | string | Data key    |
 
 **Response**
 
 {% tabs %}
 {% tab title="200" %}
-
 ```json
 {
   "status": 200,
@@ -30,11 +29,9 @@ Bu endpoint, PxServ proje veritabanına veri kaldırmayı sağlar
   "data": {}
 }
 ```
-
 {% endtab %}
 
 {% tab title="Error" %}
-
 ```json
 {
   "status": 401,
@@ -42,6 +39,5 @@ Bu endpoint, PxServ proje veritabanına veri kaldırmayı sağlar
   "data": {}
 }
 ```
-
 {% endtab %}
 {% endtabs %}

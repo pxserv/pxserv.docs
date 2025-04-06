@@ -6,20 +6,24 @@ icon: gear-code
 
 This example code allows you to perform database operations with the PxServ project. You can perform the following operations:
 
-* Save data to the database
-* Read data from the database
-* Delete data from the database
+- Save data to the database
+- Toggle data between 0 and 1 in the database
+- Read data from the database
+- Delete data from the database
 
 ## Requirements
 
 Before using this example, make sure the following libraries are installed in the Arduino IDE:
 
-* **WiFi.h**: To establish a Wi-Fi connection.
-* **PxServ.h**: To communicate with the PxServ API.
+- **PxServ.h**: To communicate with the PxServ API.
 
 ## Connection Settings
 
-You need to enter your Wi-Fi connection details and PxServ API key in the following fields:
+You need to enter the Wi-Fi connection information and your PxServ API key in the required fields in the code under the usage heading.
+
+## Usage
+
+In the following example code, the database operations using the PxServ API are explained step by step with comments; the functionality of each operation and how it works is described within the code.
 
 ```cpp
 #include <PxServ.h>
@@ -36,8 +40,8 @@ void setup()
 
 void loop()
 {
-    // Add data
-    PxServ::Callback setResult = client.setData("msg", "value"); // Add "value" to the "msg" key
+    // Save data
+    PxServ::Callback setResult = client.setData("exampleData1", "value"); // Add "value" to the "exampleData1" key
     Serial.print("Set Result -> Status: ");
     Serial.print(setResult.status);
     Serial.print(" | Message: ");
@@ -47,8 +51,19 @@ void loop()
 
     delay(2000); // Wait for two seconds
 
+    // Toggle data
+    PxServ::Callback toggleResult = client.toggleData("exampleData2"); // Toggles the value of the “exampleData2” key between 0 and 1
+    Serial.print("Toggle Result -> Status: ");
+    Serial.print(toggleResult.status);
+    Serial.print(" | Message: ");
+    Serial.print(toggleResult.message);
+    Serial.print(" | Data: ");
+    Serial.println(toggleResult.data);
+
+    delay(2000); // Wait for two seconds
+
     // Get data
-    PxServ::Callback getResult = client.getData("msg"); // Get the value for the "msg" key
+    PxServ::Callback getResult = client.getData("exampleData1"); // Get the value for the "exampleData1" key
     Serial.print("Get Result -> Status: ");
     Serial.print(getResult.status);
     Serial.print(" | Message: ");
@@ -59,7 +74,7 @@ void loop()
     delay(2000); // Wait for two seconds
 
     // Remove data
-    PxServ::Callback removeResult = client.removeData("msg"); // Remove the "msg" key
+    PxServ::Callback removeResult = client.removeData("exampleData1"); // Remove the "exampleData" key
     Serial.print("Remove Result -> Status: ");
     Serial.print(removeResult.status);
     Serial.print(" | Message: ");

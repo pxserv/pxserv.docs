@@ -2,6 +2,30 @@
 
 PxServ is an IoT platform that provides API and library support for connecting software and hardware projects to the cloud. It is compatible with Arduino, JavaScript/TypeScript, Rust, ESP32, ESP8266, Raspberry Pi, and any internet-capable device.
 
+## Your first data flow
+
+Sensor data sent with the Arduino Library is available from the Management Panel, PxServ Mobile App, and custom applications.
+
+<div className="docs-mermaid">
+
+```mermaid
+flowchart LR
+  source(["Device or application"]) -->|Library or REST API| project[["PxServ project"]]
+  project --> dashboard["Management Panel"]
+  project --> mobile["PxServ Mobile App"]
+  project --> custom["Custom dashboard or application"]
+
+  classDef external fill:#121419,stroke:#596273,color:#e5e7eb,stroke-width:1.25px
+  classDef service fill:#0d1d27,stroke:#2f86a8,color:#e0f2fe,stroke-width:1.5px
+  classDef interface fill:#171625,stroke:#7167a8,color:#ede9fe,stroke-width:1.25px
+  class source external
+  class project service
+  class dashboard,mobile,custom interface
+  linkStyle default stroke:#596273,stroke-width:1.25px
+```
+
+</div>
+
 ## Steps
 
 ### 1. Create a Project

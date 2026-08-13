@@ -56,6 +56,28 @@ PxServ ile OTA akışı basitçe şu adımlardan oluşur:
 5. Yazma ve doğrulama başarılıysa cihaz yeniden başlar.
 6. Cihaz yeni sürümle açılır.
 
+<div className="docs-mermaid">
+
+```mermaid
+flowchart LR
+  build[/".bin dosyasını derle"/] --> upload[["Panele yükle<br/>ve aktifleştir"]]
+  upload --> check["Cihaz güncellemeyi<br/>kontrol eder"]
+  check --> install["İndir ve flash<br/>belleğe yaz"]
+  install --> restart(["Yeni sürümle<br/>yeniden başlat"])
+
+  classDef external fill:#121419,stroke:#596273,color:#e5e7eb,stroke-width:1.25px
+  classDef service fill:#0d1d27,stroke:#2f86a8,color:#e0f2fe,stroke-width:1.5px
+  classDef process fill:#15181d,stroke:#4b5563,color:#d1d5db,stroke-width:1.25px
+  classDef outcome fill:#171625,stroke:#7167a8,color:#ede9fe,stroke-width:1.25px
+  class build external
+  class upload service
+  class check,install process
+  class restart outcome
+  linkStyle default stroke:#596273,stroke-width:1.25px
+```
+
+</div>
+
 ## Arayüz görselleri
 
 ![PxServ OTA paneli genel görünüm](/images/tr/ota-panel.png)

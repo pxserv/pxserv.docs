@@ -52,6 +52,28 @@ The PxServ OTA flow works as follows:
 5. If writing and verification succeed, the device restarts.
 6. The device boots with the new version.
 
+<div className="docs-mermaid">
+
+```mermaid
+flowchart LR
+  build[/"Compile the .bin file"/] --> upload[["Upload in the panel<br/>and activate"]]
+  upload --> check["Device checks<br/>for an update"]
+  check --> install["Download and write<br/>to flash"]
+  install --> restart(["Restart with<br/>the new version"])
+
+  classDef external fill:#121419,stroke:#596273,color:#e5e7eb,stroke-width:1.25px
+  classDef service fill:#0d1d27,stroke:#2f86a8,color:#e0f2fe,stroke-width:1.5px
+  classDef process fill:#15181d,stroke:#4b5563,color:#d1d5db,stroke-width:1.25px
+  classDef outcome fill:#171625,stroke:#7167a8,color:#ede9fe,stroke-width:1.25px
+  class build external
+  class upload service
+  class check,install process
+  class restart outcome
+  linkStyle default stroke:#596273,stroke-width:1.25px
+```
+
+</div>
+
 ## Interface Screenshots
 
 ![PxServ OTA panel overview](/images/en/ota-panel.png)

@@ -18,6 +18,24 @@ The Map panel reads the latest value for each of these keys from the project dat
 
 Note: all values must be sent and stored as strings (for example: `"40.712776"`). The UI queries these keys and shows a warning if required keys are missing.
 
+<div className="docs-mermaid">
+
+```mermaid
+flowchart LR
+  device(["GPS-enabled device"]) -->|Location and telemetry| database[("PxServ project database")]
+  database --> map["Map panel"]
+
+  classDef external fill:#121419,stroke:#596273,color:#e5e7eb,stroke-width:1.25px
+  classDef storage fill:#161528,stroke:#7167a8,color:#ede9fe,stroke-width:1.5px
+  classDef interface fill:#0d1d27,stroke:#2f86a8,color:#e0f2fe,stroke-width:1.25px
+  class device external
+  class database storage
+  class map interface
+  linkStyle default stroke:#596273,stroke-width:1.25px
+```
+
+</div>
+
 ## UI design
 
 ![PxServ map feature](/images/en/map-feature.png)

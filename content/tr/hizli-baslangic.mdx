@@ -2,6 +2,30 @@
 
 PxServ, yazılım ve donanım projelerini buluta bağlamak için API ve kütüphane desteği sunan bir IoT platformudur. Arduino, JavaScript/TypeScript, Rust, ESP32, ESP8266, Raspberry Pi ve internete bağlanabilen her cihazla uyumludur.
 
+## İlk veri akışınız
+
+Arduino Kütüphanesi ile gönderilen sensör verisi; Yönetim Paneli, PxServ Mobil Uygulaması ve özel uygulamalardan kullanılabilir.
+
+<div className="docs-mermaid">
+
+```mermaid
+flowchart LR
+  source(["Cihaz veya uygulama"]) -->|Kütüphane veya REST API| project[["PxServ projesi"]]
+  project --> dashboard["Yönetim Paneli"]
+  project --> mobile["PxServ Mobil Uygulaması"]
+  project --> custom["Özel panel veya uygulama"]
+
+  classDef external fill:#121419,stroke:#596273,color:#e5e7eb,stroke-width:1.25px
+  classDef service fill:#0d1d27,stroke:#2f86a8,color:#e0f2fe,stroke-width:1.5px
+  classDef interface fill:#171625,stroke:#7167a8,color:#ede9fe,stroke-width:1.25px
+  class source external
+  class project service
+  class dashboard,mobile,custom interface
+  linkStyle default stroke:#596273,stroke-width:1.25px
+```
+
+</div>
+
 ## Adımlar
 
 ### 1. Proje Oluşturun

@@ -15,3 +15,31 @@ PxServ verilerinizi HTTP üzerinden yönetmek için aşağıdaki servisi seçin.
     <b>→</b>
   </a>
 </div>
+
+## İstek yaşam döngüsü
+
+Her istek proje API anahtarıyla doğrulanır ve tutarlı bir JSON yanıtı döndürür.
+
+<div className="docs-mermaid">
+
+```mermaid
+flowchart LR
+  client(["İstemci"]) -->|HTTPS isteği + apikey| api[["PxServ REST API"]]
+  api --> auth{"API anahtarı<br/>geçerli mi?"}
+  auth -->|Evet| success["İşlemi uygula<br/>200 JSON yanıtı"]
+  auth -->|Hayır| error["401 JSON hatası"]
+
+  classDef external fill:#121419,stroke:#596273,color:#e5e7eb,stroke-width:1.25px
+  classDef service fill:#0d1d27,stroke:#2f86a8,color:#e0f2fe,stroke-width:1.5px
+  classDef decision fill:#211e17,stroke:#9b824b,color:#f3e8c8,stroke-width:1.25px
+  classDef response fill:#171625,stroke:#7167a8,color:#ede9fe,stroke-width:1.25px
+  classDef rejected fill:#211719,stroke:#9b5960,color:#f4d8dc,stroke-width:1.25px
+  class client external
+  class api service
+  class auth decision
+  class success response
+  class error rejected
+  linkStyle default stroke:#596273,stroke-width:1.25px
+```
+
+</div>

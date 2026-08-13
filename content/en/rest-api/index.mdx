@@ -15,3 +15,31 @@ Choose the service below to manage PxServ data over HTTP.
     <b>→</b>
   </a>
 </div>
+
+## Request lifecycle
+
+Every request is authenticated with the project API key and returns a consistent JSON response.
+
+<div className="docs-mermaid">
+
+```mermaid
+flowchart LR
+  client(["Client"]) -->|HTTPS request + apikey| api[["PxServ REST API"]]
+  api --> auth{"Valid API<br/>key?"}
+  auth -->|Yes| success["Apply operation<br/>200 JSON response"]
+  auth -->|No| error["401 JSON error"]
+
+  classDef external fill:#121419,stroke:#596273,color:#e5e7eb,stroke-width:1.25px
+  classDef service fill:#0d1d27,stroke:#2f86a8,color:#e0f2fe,stroke-width:1.5px
+  classDef decision fill:#211e17,stroke:#9b824b,color:#f3e8c8,stroke-width:1.25px
+  classDef response fill:#171625,stroke:#7167a8,color:#ede9fe,stroke-width:1.25px
+  classDef rejected fill:#211719,stroke:#9b5960,color:#f4d8dc,stroke-width:1.25px
+  class client external
+  class api service
+  class auth decision
+  class success response
+  class error rejected
+  linkStyle default stroke:#596273,stroke-width:1.25px
+```
+
+</div>

@@ -4,6 +4,29 @@ PxServ supports real-time bidirectional communication via **Socket.IO**. Authent
 
 The examples below use JavaScript/TypeScript. The same event structure and API key authentication apply to any language with a Socket.IO client (Python, Rust, Go, Java, etc.).
 
+## Event flow
+
+The client authenticates once; subsequent data events are delivered over the same connection.
+
+<div className="docs-mermaid">
+
+```mermaid
+flowchart LR
+  source(["Device or application"]) -->|Updates data| pxserv[["PxServ"]]
+  client["Socket.IO client"] -->|Connects with apiKey| pxserv
+  pxserv -->|setData event| client
+
+  classDef external fill:#121419,stroke:#596273,color:#e5e7eb,stroke-width:1.25px
+  classDef service fill:#0d1d27,stroke:#2f86a8,color:#e0f2fe,stroke-width:1.5px
+  classDef interface fill:#171625,stroke:#7167a8,color:#ede9fe,stroke-width:1.25px
+  class source external
+  class pxserv service
+  class client interface
+  linkStyle default stroke:#596273,stroke-width:1.25px
+```
+
+</div>
+
 ## Connecting
 
 ```js

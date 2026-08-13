@@ -4,6 +4,29 @@ PxServ, **Socket.IO** aracılığıyla gerçek zamanlı çift yönlü iletişimi
 
 Aşağıdaki örnekler JavaScript/TypeScript kullanmaktadır. Aynı olay yapısı ve API anahtarı kimlik doğrulaması, Socket.IO istemcisi olan tüm dillerde (Python, Rust, Go, Java vb.) geçerlidir.
 
+## Olay akışı
+
+İstemci bir kez kimlik doğrular; sonraki veri olayları aynı bağlantı üzerinden yayınlanır.
+
+<div className="docs-mermaid">
+
+```mermaid
+flowchart LR
+  source(["Cihaz veya uygulama"]) -->|Veriyi günceller| pxserv[["PxServ"]]
+  client["Socket.IO istemcisi"] -->|apiKey ile bağlanır| pxserv
+  pxserv -->|setData olayı| client
+
+  classDef external fill:#121419,stroke:#596273,color:#e5e7eb,stroke-width:1.25px
+  classDef service fill:#0d1d27,stroke:#2f86a8,color:#e0f2fe,stroke-width:1.5px
+  classDef interface fill:#171625,stroke:#7167a8,color:#ede9fe,stroke-width:1.25px
+  class source external
+  class pxserv service
+  class client interface
+  linkStyle default stroke:#596273,stroke-width:1.25px
+```
+
+</div>
+
 ## Bağlantı
 
 ```js

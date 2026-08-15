@@ -1,0 +1,79 @@
+---
+title: Kapı Durumu Sensörü
+description: Reed switch ile kapının açık veya kapalı durumunu yalnızca değiştiğinde PxServ'e gönderin.
+---
+
+# 7. Kapı Durumu Sensörü
+
+Manyetik reed switch kullanarak kapının açık veya kapalı olduğunu algılayın. Veri yalnızca durum değiştiğinde gönderildiği için gereksiz ağ trafiği oluşmaz.
+
+**Seviye:** Başlangıç · **Süre:** 25 dakika
+
+## Gerekenler ve bağlantılar
+
+- ESP32 DevKit V1
+- Normalde açık reed switch ve mıknatıs
+
+| Reed switch ucu | ESP32   |
+| --------------- | ------- |
+| 1               | GPIO 18 |
+| 2               | GND     |
+
+## PxServ anahtarları
+
+| Anahtar               | Değer                          |
+| --------------------- | ------------------------------ |
+| `kapi/durum`          | `acik` / `kapali`              |
+| `kapi/degisim-sayisi` | Açılma ve kapanmaların toplamı |
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int REED_PIN = 18;
+
+PxServ client(PXSERV_API_KEY);
+int previousState = -1;
+unsigned long changeCount = 0;
+
+void publishDoorState(int state) {
+  bool doorClosed = state == LOW;
+  client.setData("kapi/durum", doorClosed ? "kapali" : "acik");
+  client.setData("kapi/degisim-sayisi", String(changeCount));
+  Serial.println(doorClosed ? "Kapi kapali" : "Kapi acik");
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(REED_PIN, INPUT_PULLUP);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  int currentState = digitalRead(REED_PIN);
+
+  if (currentState != previousState) {
+    delay(30);
+    currentState = digitalRead(REED_PIN);
+    if (currentState != previousState) {
+      if (previousState != -1) changeCount++;
+      publishDoorState(currentState);
+      previousState = currentState;
+    }
+  }
+
+  delay(20);
+}
+```
+
+## Test
+
+Mıknatısı reed switch'e yaklaştırıp uzaklaştırın. Normalde açık sensörde mıknatıs yakındayken `kapali`, uzaktayken `acik` görünmelidir. Tersi oluyorsa sensör tipiniz veya mekanik yerleşiminiz farklıdır; `doorClosed` koşulunu tersine çevirin.
+
+## Montaj notu
+
+Sensörü sabit kasaya, mıknatısı hareketli kapıya yerleştirin. Kapı kapandığında iki parçanın üreticinin izin verdiği algılama mesafesinde olduğundan emin olun.

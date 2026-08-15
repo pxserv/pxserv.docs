@@ -1,0 +1,125 @@
+---
+title: Greenhouse Automation
+description: Control a fan and pump from temperature and soil moisture with hysteresis and timing safeguards.
+---
+
+# 1. Greenhouse Automation
+
+Combine a DHT22 and capacitive soil sensor. Temperature hysteresis controls the fan; short watering pulses and a cooldown protect the pump. PxServ enables the system and exposes every decision.
+
+**Level:** Advanced · **Time:** 70 minutes
+
+## Design goals
+
+- Schedule multiple sensor and actuator tasks without long blocking delays
+- Prevent relay chatter around a threshold with hysteresis
+- Limit pump run time and repeat frequency
+- Stop outputs on invalid sensor data or configuration
+
+## Safety and wiring
+
+Use only low-voltage DC loads, suitable relay/MOSFET drivers, external power, common GND, and inductive-load protection. Keep water physically separated from electronics. The sketch assumes active-low drivers.
+
+| Part | ESP32 |
+| --- | --- |
+| DHT22 DATA | GPIO 4 |
+| Soil sensor AOUT | GPIO 34 |
+| Fan driver IN | GPIO 25 |
+| Pump driver IN | GPIO 26 |
+
+Create `greenhouse/system-enabled=1`, `greenhouse/fan-on=30`, `greenhouse/fan-off=28`, and `greenhouse/watering-threshold=30`.
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+#include <DHT.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int DHT_PIN = 4, SOIL_PIN = 34, FAN_PIN = 25, PUMP_PIN = 26;
+const int DRY_VALUE = 3000, WET_VALUE = 1400;  // Calibrate
+const unsigned long PUMP_RUN_MS = 5000;
+const unsigned long PUMP_COOLDOWN_MS = 60000;
+
+PxServ client(PXSERV_API_KEY);
+DHT dht(DHT_PIN, DHT22);
+bool systemEnabled = true, fanOn = false, pumpOn = false;
+float fanOnAt = 30.0, fanOffAt = 28.0;
+int wateringThreshold = 30;
+unsigned long pumpStartedAt = 0, pumpStoppedAt = 0;
+unsigned long lastSensorAt = 0, lastConfigAt = 0;
+
+void setOutput(int pin, bool enabled) {
+  digitalWrite(pin, enabled ? LOW : HIGH);
+}
+
+void setPump(bool enabled) {
+  pumpOn = enabled;
+  setOutput(PUMP_PIN, enabled);
+  if (enabled) pumpStartedAt = millis();
+  else pumpStoppedAt = millis();
+}
+
+void readConfig() {
+  PxServ::Callback active = client.getData("greenhouse/system-enabled");
+  if (active.status == 200) systemEnabled = active.data == "1";
+  PxServ::Callback onValue = client.getData("greenhouse/fan-on");
+  if (onValue.status == 200) fanOnAt = onValue.data.toFloat();
+  PxServ::Callback offValue = client.getData("greenhouse/fan-off");
+  if (offValue.status == 200) fanOffAt = offValue.data.toFloat();
+  PxServ::Callback soilValue = client.getData("greenhouse/watering-threshold");
+  if (soilValue.status == 200) {
+    wateringThreshold = constrain(soilValue.data.toInt(), 0, 100);
+  }
+}
+
+void safeStop(String reason) {
+  fanOn = false;
+  setOutput(FAN_PIN, false);
+  if (pumpOn) setPump(false);
+  client.setData("greenhouse/status", reason);
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(FAN_PIN, OUTPUT); pinMode(PUMP_PIN, OUTPUT);
+  setOutput(FAN_PIN, false); setOutput(PUMP_PIN, false);
+  analogReadResolution(12);
+  dht.begin();
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  unsigned long now = millis();
+  if (pumpOn && now - pumpStartedAt >= PUMP_RUN_MS) setPump(false);
+  if (now - lastConfigAt >= 30000) { lastConfigAt = now; readConfig(); }
+  if (now - lastSensorAt < 10000) { delay(20); return; }
+  lastSensorAt = now;
+
+  float temperature = dht.readTemperature();
+  int soil = constrain(map(analogRead(SOIL_PIN), DRY_VALUE, WET_VALUE, 0, 100), 0, 100);
+  if (!systemEnabled) { safeStop("remote-disabled"); return; }
+  if (isnan(temperature)) { safeStop("sensor-error"); return; }
+  if (fanOffAt >= fanOnAt) { safeStop("configuration-error"); return; }
+
+  if (!fanOn && temperature >= fanOnAt) fanOn = true;
+  if (fanOn && temperature <= fanOffAt) fanOn = false;
+  setOutput(FAN_PIN, fanOn);
+
+  bool cooldownReady = now - pumpStoppedAt >= PUMP_COOLDOWN_MS;
+  if (!pumpOn && soil < wateringThreshold && cooldownReady) setPump(true);
+
+  client.setData("greenhouse/temperature", String(temperature, 1));
+  client.setData("greenhouse/soil-moisture", String(soil));
+  client.setData("greenhouse/fan-status", fanOn ? "1" : "0");
+  client.setData("greenhouse/pump-status", pumpOn ? "1" : "0");
+  client.setData("greenhouse/status", "normal");
+}
+```
+
+## Commissioning
+
+Validate sensors first, then test driver outputs with LEDs. Confirm hysteresis, five-second watering, one-minute cooldown, remote disable, and sensor-error shutdown before connecting loads. A field system also needs reservoir, flow, relay-feedback, and independent hardware protection.
+

@@ -1,0 +1,70 @@
+---
+title: Cloud-Connected Button Counter
+description: Count physical button presses and publish the total to PxServ.
+---
+
+# 3. Cloud-Connected Button Counter
+
+Count each valid press of a physical button and publish the total. The sketch uses the ESP32 internal pull-up and simple contact debounce.
+
+**Level:** Beginner · **Time:** 25 minutes
+
+## Parts and wiring
+
+- ESP32 DevKit V1 and momentary push button
+
+| Button terminal | Connection |
+| --- | --- |
+| First side | GPIO 18 |
+| Opposite side | GND |
+
+With `INPUT_PULLUP`, the input is `HIGH` at rest and `LOW` when pressed.
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int BUTTON_PIN = 18;
+
+PxServ client(PXSERV_API_KEY);
+unsigned long pressCount = 0;
+bool previousButton = HIGH;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+  client.setData("button-counter/total", "0");
+}
+
+void loop() {
+  bool currentButton = digitalRead(BUTTON_PIN);
+
+  if (previousButton == HIGH && currentButton == LOW) {
+    delay(25);
+    if (digitalRead(BUTTON_PIN) == LOW) {
+      pressCount++;
+      PxServ::Callback result = client.setData(
+        "button-counter/total",
+        String(pressCount)
+      );
+      Serial.print("Total: ");
+      Serial.print(pressCount);
+      Serial.print(" | Status: ");
+      Serial.println(result.status);
+    }
+  }
+
+  previousButton = currentButton;
+  delay(10);
+}
+```
+
+## Test
+
+Press the button five deliberate times. Serial Monitor and PxServ should both show `5`. This teaching counter resets after a reboot. Increase the 25 ms debounce time if one press is counted more than once.
+

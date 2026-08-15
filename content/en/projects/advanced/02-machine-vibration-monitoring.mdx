@@ -1,0 +1,91 @@
+---
+title: Machine Vibration Monitoring
+description: Calculate a simple comparison metric from MPU6050 acceleration samples and publish a threshold alarm.
+---
+
+# 2. Machine Vibration Monitoring
+
+Capture a short MPU6050 sample window and calculate the root-mean-square deviation from gravity magnitude. Use it only as a repeatable indicator on the same machine.
+
+**Level:** Advanced · **Time:** 60 minutes
+
+This is not certified predictive maintenance or safety instrumentation. Mounting, sample rate, machine speed, and resonance strongly affect the result.
+
+## Requirements and wiring
+
+- ESP32, MPU6050, LED with 220–330 Ω resistor
+- **Adafruit MPU6050**, **Adafruit Unified Sensor**, **Adafruit BusIO**
+
+Connect SDA→GPIO21, SCL→GPIO22, compatible power→3V3/GND, and the alarm LED to GPIO23 through its resistor.
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+#include <Wire.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int ALARM_LED = 23;
+const int SAMPLE_COUNT = 100;
+const unsigned long SAMPLE_INTERVAL_US = 5000;
+
+PxServ client(PXSERV_API_KEY);
+Adafruit_MPU6050 mpu;
+float alarmThreshold = 2.0;
+unsigned long lastMeasurementAt = 0;
+
+float measureVibration() {
+  float sumSquares = 0;
+  for (int i = 0; i < SAMPLE_COUNT; i++) {
+    sensors_event_t acceleration, gyro, temperature;
+    mpu.getEvent(&acceleration, &gyro, &temperature);
+    float magnitude = sqrt(
+      acceleration.acceleration.x * acceleration.acceleration.x +
+      acceleration.acceleration.y * acceleration.acceleration.y +
+      acceleration.acceleration.z * acceleration.acceleration.z
+    );
+    float dynamicPart = magnitude - 9.81f;
+    sumSquares += dynamicPart * dynamicPart;
+    delayMicroseconds(SAMPLE_INTERVAL_US);
+  }
+  return sqrt(sumSquares / SAMPLE_COUNT);
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(ALARM_LED, OUTPUT);
+  Wire.begin(21, 22);
+  if (!mpu.begin()) {
+    Serial.println("MPU6050 not found");
+    while (true) delay(1000);
+  }
+  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+  mpu.setFilterBandwidth(MPU6050_BAND_44_HZ);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  if (millis() - lastMeasurementAt < 10000) { delay(20); return; }
+  lastMeasurementAt = millis();
+
+  PxServ::Callback threshold = client.getData("vibration/alarm-threshold");
+  if (threshold.status == 200) alarmThreshold = threshold.data.toFloat();
+  float vibration = measureVibration();
+  bool alarm = vibration > alarmThreshold;
+  digitalWrite(ALARM_LED, alarm ? HIGH : LOW);
+  client.setData("vibration/indicator", String(vibration, 3));
+  client.setData("vibration/threshold", String(alarmThreshold, 3));
+  client.setData("vibration/status", alarm ? "alarm" : "normal");
+}
+```
+
+## Establish a baseline
+
+Record at least ten stopped and twenty normal-running measurements with identical sensor mounting. Set the threshold above the stable normal range. Never touch or modify a running machine to test an alarm. This half-second metric is not a frequency spectrum.
+
+Reference: [Adafruit MPU6050 Arduino guide](https://learn.adafruit.com/mpu6050-6-dof-accelerometer-and-gyro/arduino)
+

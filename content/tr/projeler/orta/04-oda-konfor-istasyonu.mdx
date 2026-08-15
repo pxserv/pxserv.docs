@@ -1,0 +1,76 @@
+---
+title: Oda Konfor İstasyonu
+description: DHT22 sıcaklık ve neminden ısı indeksi hesaplayıp konfor durumunu PxServ'e gönderin.
+---
+
+# 4. Oda Konfor İstasyonu
+
+DHT22 ölçümlerinden hissedilen sıcaklık değerini hesaplayın ve basit bir konfor etiketi üretin. Ham ölçüm ile türetilmiş bilginin ayrı tutulmasını öğrenin.
+
+**Seviye:** Orta · **Süre:** 40 dakika
+
+## Gerekenler ve bağlantılar
+
+- ESP32 DevKit V1, DHT22 modülü
+- **DHT sensor library** ve **Adafruit Unified Sensor**
+
+| DHT22 | ESP32 |
+| --- | --- |
+| VCC / GND | 3V3 / GND |
+| DATA | GPIO 4 |
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+#include <DHT.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int DHT_PIN = 4;
+
+PxServ client(PXSERV_API_KEY);
+DHT dht(DHT_PIN, DHT22);
+
+String comfortLabel(float temperature, float humidity) {
+  if (temperature < 18) return "serin";
+  if (temperature > 27 || humidity > 70) return "sicak-nemli";
+  if (humidity < 30) return "kuru";
+  return "konforlu";
+}
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  float temperature = dht.readTemperature();
+  float humidity = dht.readHumidity();
+
+  if (isnan(temperature) || isnan(humidity)) {
+    client.setData("konfor/sensor-durum", "hata");
+    delay(5000);
+    return;
+  }
+
+  float heatIndex = dht.computeHeatIndex(temperature, humidity, false);
+  String comfort = comfortLabel(temperature, humidity);
+
+  client.setData("konfor/sicaklik", String(temperature, 1));
+  client.setData("konfor/nem", String(humidity, 1));
+  client.setData("konfor/hissedilen", String(heatIndex, 1));
+  client.setData("konfor/durum", comfort);
+  client.setData("konfor/sensor-durum", "normal");
+
+  Serial.println(comfort);
+  delay(15000);
+}
+```
+
+## Test ve sınırlar
+
+Sensörü farklı odalarda karşılaştırın. `comfortLabel()` eşikleri eğitim amaçlıdır ve sağlık, HVAC standardı veya profesyonel iç hava kalitesi ölçütü değildir. Kendi kullanımınıza uygun eşikleri açıkça belgeleyerek değiştirin.
+

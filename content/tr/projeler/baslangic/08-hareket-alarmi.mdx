@@ -1,0 +1,77 @@
+---
+title: PIR Hareket Alarmı
+description: PIR sensörüyle hareket olaylarını algılayıp durum ve olay sayısını PxServ'e gönderin.
+---
+
+# 8. PIR Hareket Alarmı
+
+HC-SR501 PIR sensörünün dijital çıkışını okuyun; hareket başladığında PxServ'e olay ve sayaç verisi gönderin.
+
+**Seviye:** Başlangıç · **Süre:** 30 dakika
+
+## Gerekenler ve bağlantılar
+
+- ESP32 DevKit V1
+- HC-SR501 PIR hareket sensörü
+
+| PIR | ESP32    |
+| --- | -------- |
+| VCC | 5V / VIN |
+| OUT | GPIO 27  |
+| GND | GND      |
+
+HC-SR501 OUT pini tipik olarak ESP32 için uygun dijital seviyede çalışır; farklı bir modül kullanıyorsanız çıkış gerilimini veri sayfasından doğrulayın.
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int PIR_PIN = 27;
+
+PxServ client(PXSERV_API_KEY);
+bool previousMotion = false;
+unsigned long eventCount = 0;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PIR_PIN, INPUT);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+  Serial.println("PIR sensorunun isinmasi bekleniyor...");
+  delay(30000);
+}
+
+void loop() {
+  bool motion = digitalRead(PIR_PIN) == HIGH;
+
+  if (motion != previousMotion) {
+    client.setData("hareket/durum", motion ? "1" : "0");
+
+    if (motion) {
+      eventCount++;
+      client.setData("hareket/olay-sayisi", String(eventCount));
+      Serial.println("Hareket algilandi.");
+    } else {
+      Serial.println("Hareket sona erdi.");
+    }
+
+    previousMotion = motion;
+  }
+
+  delay(100);
+}
+```
+
+## Test
+
+Kart açıldıktan sonra 30 saniyelik ısınma süresini bekleyin. Sensör önünde hareket ettiğinizde `durum` anahtarı `1` olmalı ve sayaç bir artmalıdır. PIR üzerindeki süre potansiyometresi, çıkışın ne kadar süre aktif kalacağını belirler.
+
+## Sorun giderme
+
+- Sürekli hareket görülüyorsa hassasiyeti azaltın ve sensörü ısı kaynağı ya da güneşten uzaklaştırın.
+- Olaylar geç sıfırlanıyorsa sensör üzerindeki gecikme ayarını düşürün.
+
+Teknik referans: [Adafruit PIR kullanım rehberi](https://learn.adafruit.com/pir-passive-infrared-proximity-motion-sensor/using-a-pir-w-arduino)

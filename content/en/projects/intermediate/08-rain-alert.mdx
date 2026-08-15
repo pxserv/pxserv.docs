@@ -1,0 +1,64 @@
+---
+title: Rain Alert
+description: Filter an analog rain sensor and publish dry, damp, and rain states to PxServ.
+---
+
+# 8. Rain Alert
+
+Average an analog rain-plate signal, classify three states, and count transitions into the rain state.
+
+**Level:** Intermediate · **Time:** 40 minutes
+
+## Parts and wiring
+
+- ESP32 and a 3.3 V-compatible analog rain sensor
+
+Connect VCC→3V3, GND→GND, and AO→GPIO 34. Exposed copper plates corrode when left wet; use this module for short tests or choose an outdoor-rated sensor.
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int RAIN_PIN = 34;
+const int DRY_LIMIT = 3200;  // Calibrate
+const int WET_LIMIT = 2200;
+
+PxServ client(PXSERV_API_KEY);
+String previousState = "";
+unsigned long eventCount = 0;
+
+void setup() {
+  Serial.begin(115200);
+  analogReadResolution(12);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  long total = 0;
+  for (int i = 0; i < 20; i++) {
+    total += analogRead(RAIN_PIN);
+    delay(10);
+  }
+  int raw = total / 20;
+  String state = raw > DRY_LIMIT ? "dry" :
+                 raw > WET_LIMIT ? "damp" : "rain";
+
+  client.setData("rain/raw", String(raw));
+  client.setData("rain/status", state);
+  if (state != previousState) {
+    if (state == "rain") eventCount++;
+    client.setData("rain/event-count", String(eventCount));
+    previousState = state;
+  }
+  delay(10000);
+}
+```
+
+## Calibration
+
+Record dry, lightly damp, and wet values and place the two thresholds between those ranges. Reverse the comparisons if your module's reading rises with moisture.
+

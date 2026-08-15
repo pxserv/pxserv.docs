@@ -1,0 +1,78 @@
+---
+title: Water Tank Level Monitoring
+description: Convert top-mounted ultrasonic distance into a calibrated tank-fill percentage.
+---
+
+# 5. Water Tank Level Monitoring
+
+Measure the distance from the tank top to the water surface, then map calibrated empty and full distances to a percentage.
+
+**Level:** Intermediate · **Time:** 45 minutes
+
+## Requirements and wiring
+
+Use an HC-SR04 for a dry prototype; prefer a protected or waterproof sensor in humid installations. Level-shift ECHO from 5 V to 3.3 V.
+
+| HC-SR04 | ESP32 |
+| --- | --- |
+| VCC / GND | 5V / GND |
+| TRIG | GPIO 5 |
+| ECHO | GPIO 18 through divider |
+
+`EMPTY_DISTANCE_CM` is the sensor-to-lowest-level distance; `FULL_DISTANCE_CM` is the sensor-to-highest-allowed-level distance.
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int TRIG_PIN = 5;
+const int ECHO_PIN = 18;
+const float EMPTY_DISTANCE_CM = 90.0;
+const float FULL_DISTANCE_CM = 10.0;
+
+PxServ client(PXSERV_API_KEY);
+
+float readDistanceCm() {
+  digitalWrite(TRIG_PIN, LOW); delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH); delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  unsigned long duration = pulseIn(ECHO_PIN, HIGH, 30000);
+  return duration == 0 ? -1 : duration * 0.0343f / 2.0f;
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  float distance = readDistanceCm();
+  if (distance < 0) {
+    client.setData("tank/sensor-status", "no-reading");
+    delay(5000);
+    return;
+  }
+
+  float level = (EMPTY_DISTANCE_CM - distance) * 100.0 /
+                (EMPTY_DISTANCE_CM - FULL_DISTANCE_CM);
+  level = constrain(level, 0.0f, 100.0f);
+  String status = level < 20 ? "low" : level > 90 ? "high" : "normal";
+
+  client.setData("tank/distance-cm", String(distance, 1));
+  client.setData("tank/level-percent", String(level, 1));
+  client.setData("tank/status", status);
+  client.setData("tank/sensor-status", "normal");
+  delay(10000);
+}
+```
+
+## Test and limits
+
+Mount the sensor perpendicular to the surface and calibrate both endpoints. Do not rely on this prototype as the only overflow or pump safety; use independent physical level switches in a real installation.
+

@@ -1,0 +1,74 @@
+---
+title: Cloud-Connected Parking Sensor
+description: Measure distance with an HC-SR04, classify warning zones, and publish them to PxServ.
+---
+
+# 3. Cloud-Connected Parking Sensor
+
+Measure an object's distance, classify it as safe, slow, or stop, and activate a buzzer in the nearest zone.
+
+**Level:** Intermediate · **Time:** 40 minutes
+
+## Electrical warning and wiring
+
+HC-SR04 ECHO may output 5 V. Do not connect it directly to ESP32. A 1 kΩ resistor from ECHO to GPIO and 2 kΩ from GPIO to GND forms an approximate 3.3 V divider.
+
+| Part | ESP32 |
+| --- | --- |
+| HC-SR04 VCC / GND | 5V / GND |
+| TRIG | GPIO 5 |
+| ECHO | GPIO 18 through divider |
+| Active buzzer SIG | GPIO 23 |
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int TRIG_PIN = 5;
+const int ECHO_PIN = 18;
+const int BUZZER_PIN = 23;
+
+PxServ client(PXSERV_API_KEY);
+
+float readDistanceCm() {
+  digitalWrite(TRIG_PIN, LOW); delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH); delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  unsigned long duration = pulseIn(ECHO_PIN, HIGH, 30000);
+  return duration == 0 ? -1 : duration * 0.0343f / 2.0f;
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  float distance = readDistanceCm();
+  String zone;
+  if (distance < 0) zone = "no-reading";
+  else if (distance < 20) zone = "stop";
+  else if (distance < 50) zone = "slow";
+  else zone = "safe";
+
+  digitalWrite(BUZZER_PIN, zone == "stop" ? HIGH : LOW);
+  client.setData("parking/zone", zone);
+  if (distance >= 0) client.setData("parking/distance-cm", String(distance, 1));
+  delay(1000);
+}
+```
+
+## Test
+
+Move a flat board through the 50 cm and 20 cm boundaries and compare with a ruler. Soft, angled, or small surfaces may reflect ultrasound poorly.
+
+Reference: [Arduino HC-SR04 library entry](https://docs.arduino.cc/libraries/hc-sr04/)
+

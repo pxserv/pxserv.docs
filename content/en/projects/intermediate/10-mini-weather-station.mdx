@@ -1,0 +1,66 @@
+---
+title: BME280 Mini Weather Station
+description: Publish BME280 temperature, pressure, and approximate altitude over I²C.
+---
+
+# 10. BME280 Mini Weather Station
+
+Read temperature, atmospheric pressure, and optional humidity from a common BME280 module, then estimate altitude from a configured sea-level pressure.
+
+**Level:** Intermediate · **Time:** 45 minutes
+
+## Requirements and wiring
+
+- ESP32 and BME280 I²C module
+- **Adafruit BME280**, **Adafruit Unified Sensor**, and **Adafruit BusIO**
+
+| BME280    | ESP32                                         |
+| --------- | --------------------------------------------- |
+| VIN / GND | 3V3 / GND when the module is 3.3 V-compatible |
+| SDA       | GPIO 21                                       |
+| SCL       | GPIO 22                                       |
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+#include <Wire.h>
+#include <Adafruit_BME280.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const float SEA_LEVEL_HPA = 1013.25;
+
+PxServ client(PXSERV_API_KEY);
+Adafruit_BME280 bme;
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(21, 22);
+  if (!bme.begin(0x76)) {
+    Serial.println("BME280 not found; check address 0x76/0x77");
+    while (true) delay(1000);
+  }
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  float temperature = bme.readTemperature();
+  float pressure = bme.readPressure() / 100.0f;
+  float altitude = bme.readAltitude(SEA_LEVEL_HPA);
+
+  client.setData("weather/temperature", String(temperature, 1));
+  client.setData("weather/pressure-hpa", String(pressure, 1));
+  client.setData("weather/altitude-m", String(altitude, 1));
+  delay(30000);
+}
+```
+
+## Test and accuracy
+
+Try address `0x77` if initialization fails. Replace `SEA_LEVEL_HPA` with current local sea-level pressure for a more useful altitude estimate. BME280 is a common choice because it measures temperature, pressure, and humidity in a single module.
+
+Reference: [Adafruit BME280 product guide](https://learn.adafruit.com/adafruit-bme280-humidity-barometer-thermometer-sensor)
+
+Continue with [Advanced: Greenhouse Automation](/en/projects/advanced/01-greenhouse-automation/).

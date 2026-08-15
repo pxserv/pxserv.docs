@@ -1,0 +1,107 @@
+---
+title: GPS Takip Cihazı
+description: NEO-6M GPS verisini ayrıştırıp PxServ harita anahtarlarıyla konum, hız ve uydu sayısı gönderin.
+---
+
+# 4. GPS Takip Cihazı
+
+ESP32'nin ikinci donanımsal seri portundan NEO-6M verisini okuyun. Geçerli konum, hız ve uydu sayısını PxServ'in harita özelliğinin beklediği anahtarlara gönderin.
+
+**Seviye:** İleri · **Süre:** 60 dakika
+
+## Gizlilik ve güvenlik
+
+Konum verisi kişisel veya operasyonel olarak hassas olabilir. API anahtarını koruyun, yalnızca gerekli hassasiyeti ve sıklığı gönderin, izlenen kişinin açık rızasını ve geçerli mevzuatı gözetin. Bu prototipi araç güvenliği veya acil durum sistemi olarak kullanmayın.
+
+## Gerekenler ve bağlantılar
+
+- ESP32 DevKit V1, NEO-6M veya uyumlu UART GPS modülü
+- Arduino Library Manager'dan **TinyGPSPlus**
+
+| GPS | ESP32 |
+| --- | --- |
+| TX | GPIO 16 (ESP32 RX2) |
+| RX | GPIO 17 (ESP32 TX2, çoğu okumada isteğe bağlı) |
+| VCC / GND | Modül veri sayfasına uygun besleme / GND |
+
+GPS UART lojik seviyesinin 3,3 V uyumlu olduğunu modül belgesinden doğrulayın. Anteni gökyüzünü gören açık bir konuma yerleştirin.
+
+## PxServ harita anahtarları
+
+Bu anahtar adları PxServ [Harita Özelliği](/tr/harita-ozelligi/) ile birebir uyumludur:
+
+- `map/lat`
+- `map/long`
+- `map/speed`
+- `map/connectedsats`
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+#include <TinyGPSPlus.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int GPS_RX_PIN = 16;
+const int GPS_TX_PIN = 17;
+const uint32_t GPS_BAUD = 9600;
+
+PxServ client(PXSERV_API_KEY);
+TinyGPSPlus gps;
+HardwareSerial gpsSerial(1);
+unsigned long lastPublishAt = 0;
+
+void publishGps() {
+  if (!gps.location.isValid()) {
+    client.setData("gps/durum", "konum-bekleniyor");
+    return;
+  }
+
+  client.setData("map/lat", String(gps.location.lat(), 6));
+  client.setData("map/long", String(gps.location.lng(), 6));
+  client.setData(
+    "map/speed",
+    gps.speed.isValid() ? String(gps.speed.kmph(), 1) : "0"
+  );
+  client.setData(
+    "map/connectedsats",
+    gps.satellites.isValid() ? String(gps.satellites.value()) : "0"
+  );
+  client.setData("gps/durum", "normal");
+  client.setData("gps/veri-yasi-ms", String(gps.location.age()));
+}
+
+void setup() {
+  Serial.begin(115200);
+  gpsSerial.begin(GPS_BAUD, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  while (gpsSerial.available()) {
+    gps.encode(gpsSerial.read());
+  }
+
+  unsigned long now = millis();
+  if (now - lastPublishAt >= 10000) {
+    lastPublishAt = now;
+    publishGps();
+  }
+
+  if (now > 15000 && gps.charsProcessed() < 10) {
+    Serial.println("GPS verisi yok; RX/TX ve baud hizini kontrol edin.");
+  }
+  delay(5);
+}
+```
+
+## Test
+
+İlk sabit konum kapalı alanda alınamayabilir; açık gökyüzü altında birkaç dakika bekleyin. Seri veri yoksa TX→RX çapraz bağlantısını ve modül baud hızını kontrol edin. Konum geçerli olduğunda PxServ Harita bölümünde işaret görünmelidir.
+
+`gps.location.age()` büyüyorsa son konum eskidir. Üretim uygulamasında belirlediğiniz yaş sınırını aşan konumu yayınlamayın veya açıkça `bayat-veri` olarak işaretleyin.
+
+Teknik referans: [TinyGPSPlus resmî deposu ve API özeti](https://github.com/mikalhart/TinyGPSPlus)
+

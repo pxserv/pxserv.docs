@@ -1,0 +1,88 @@
+---
+title: Su Deposu Seviye Takibi
+description: Üstten ultrasonik mesafe ölçümünü depo doluluk yüzdesine çevirip PxServ'e gönderin.
+---
+
+# 5. Su Deposu Seviye Takibi
+
+Deponun üstünden su yüzeyine olan mesafeyi ölçün ve kalibre edilmiş boş/dolu noktaları arasında yüzdeye dönüştürün.
+
+**Seviye:** Orta · **Süre:** 45 dakika
+
+## Gerekenler ve bağlantılar
+
+- ESP32 DevKit V1
+- HC-SR04; nemli ortam için uygun muhafaza veya suya dayanıklı ultrasonik sensör tercih edilir
+- ECHO hattı için 5 V → 3,3 V gerilim bölücü
+
+| HC-SR04 | ESP32 |
+| --- | --- |
+| VCC / GND | 5V / GND |
+| TRIG | GPIO 5 |
+| ECHO | Gerilim bölücü üzerinden GPIO 18 |
+
+## Kalibrasyon
+
+- `EMPTY_DISTANCE_CM`: Sensör ile depo tabanı/suyun en düşük seviyesi arası mesafe.
+- `FULL_DISTANCE_CM`: Sensör ile izin verilen en yüksek su seviyesi arası mesafe.
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int TRIG_PIN = 5;
+const int ECHO_PIN = 18;
+const float EMPTY_DISTANCE_CM = 90.0;
+const float FULL_DISTANCE_CM = 10.0;
+
+PxServ client(PXSERV_API_KEY);
+
+float readDistanceCm() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  unsigned long duration = pulseIn(ECHO_PIN, HIGH, 30000);
+  return duration == 0 ? -1 : duration * 0.0343f / 2.0f;
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  float distance = readDistanceCm();
+
+  if (distance < 0) {
+    client.setData("depo/sensor-durum", "olcum-yok");
+    delay(5000);
+    return;
+  }
+
+  float level = (EMPTY_DISTANCE_CM - distance) * 100.0 /
+                (EMPTY_DISTANCE_CM - FULL_DISTANCE_CM);
+  level = constrain(level, 0.0f, 100.0f);
+  String status = level < 20 ? "dusuk" : level > 90 ? "yuksek" : "normal";
+
+  client.setData("depo/mesafe-cm", String(distance, 1));
+  client.setData("depo/seviye-yuzde", String(level, 1));
+  client.setData("depo/durum", status);
+  client.setData("depo/sensor-durum", "normal");
+  delay(10000);
+}
+```
+
+## Montaj ve test
+
+Sensörü suya dik bakacak ve maksimum su seviyesinin üzerinde kalacak biçimde sabitleyin. Önce boş ve dolu referans mesafelerini ölçün. Dalgalı yüzeylerde beş ölçümün medyanını almak daha kararlı sonuç verir.
+
+Bu prototipi taşma veya pompa güvenliği için tek başına kullanmayın; gerçek sistemde bağımsız fiziksel seviye şalterleri gerekir.
+

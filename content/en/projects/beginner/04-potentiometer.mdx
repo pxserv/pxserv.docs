@@ -1,0 +1,60 @@
+---
+title: Potentiometer Monitoring
+description: Read an ESP32 analog input and send the potentiometer position to PxServ as a percentage.
+---
+
+# 4. Potentiometer Monitoring
+
+Read a potentiometer through the ESP32 ADC, convert the raw value to a percentage, and publish both values.
+
+**Level:** Beginner · **Time:** 20 minutes
+
+## Parts and wiring
+
+- ESP32 DevKit V1 and 10 kΩ linear potentiometer
+
+| Potentiometer terminal | Connection |
+| --- | --- |
+| Outer terminal | 3V3 |
+| Center wiper | GPIO 34 |
+| Other outer terminal | GND |
+
+Never power this divider from 5 V; do not exceed 3.3 V on the ADC input.
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int POT_PIN = 34;
+
+PxServ client(PXSERV_API_KEY);
+
+void setup() {
+  Serial.begin(115200);
+  analogReadResolution(12);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  int rawValue = analogRead(POT_PIN);
+  int percent = constrain(map(rawValue, 0, 4095, 0, 100), 0, 100);
+
+  client.setData("potentiometer/raw", String(rawValue));
+  client.setData("potentiometer/percent", String(percent));
+
+  Serial.print("Raw: ");
+  Serial.print(rawValue);
+  Serial.print(" | Percent: ");
+  Serial.println(percent);
+  delay(5000);
+}
+```
+
+## Test
+
+Turn the knob between both ends. The raw value should span roughly `0–4095` and the percentage `0–100`. Swap the outer terminals if the direction is reversed. Shorter wiring and averaging can reduce unstable readings.
+

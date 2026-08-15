@@ -1,10 +1,10 @@
 export default {
   'quick-start': 'Quick Start',
+  'arduino-library': 'Arduino Library',
   'sdk-separator': {
     type: 'separator',
     title: 'SDKs'
   },
-  'arduino-library': 'Arduino Library',
   'javascript-typescript-library': 'JavaScript / TypeScript',
   'rust-library': 'Rust Library',
   'map-feature': 'Map Feature',
@@ -18,5 +18,12 @@ export default {
     type: 'separator',
     title: 'APIs'
   },
-  'rest-api': 'REST API'
+  'rest-api': 'REST API',
+  projects: {
+    display: 'children'
+  },
+  'projects-separator': {
+    type: 'separator',
+    title: 'Projects'
+  }
 }

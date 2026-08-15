@@ -1,0 +1,76 @@
+---
+title: Proje Listesi
+description: Maker seviyesinden üretime yaklaşan IoT uygulamalarına uzanan 25 adımlık PxServ ve ESP32 öğrenme yolu.
+asIndexPage: true
+---
+
+import { Callout } from "nextra/components";
+
+# Proje Listesi
+
+Bu bölüm, ilk kez bir sensörü buluta bağlayan maker'lardan daha güvenilir saha cihazları geliştirmek isteyen profesyonel kullanıcılara kadar ilerleyen **25 uygulamalı proje** içerir. Her proje aynı düzeni izler: hedef, kazanımlar, malzeme listesi, bağlantı tablosu, PxServ veri anahtarları, tam örnek firmware kodu, test adımları ve sorun giderme.
+
+## Öğrenme yolu
+
+| Seviye                               | Proje | Odak                                                           |
+| ------------------------------------ | ----: | -------------------------------------------------------------- |
+| [Başlangıç](/tr/projeler/baslangic/) |    10 | GPIO, temel sensör okuma, `setData()` ve `getData()`           |
+| [Orta](/tr/projeler/orta/)           |    10 | Birden fazla görev, uzaktan komut, kalibrasyon ve alarm üretme |
+| [İleri](/tr/projeler/ileri/)         |     5 | Histerezis, güvenli durum, çoklu telemetri, harita ve OTA      |
+
+<Callout type="info">
+  <strong>Ortak geliştirme kartı</strong>
+  <div>
+    Örnekler ESP32 DevKit V1 ve Arduino IDE temel alınarak hazırlanmıştır.
+    PxServ kütüphanesi ESP8266'yı da destekler; ancak pin adları, ADC aralığı ve
+    bazı çevre birimi API'leri karta göre uyarlanmalıdır.
+  </div>
+</Callout>
+
+## Başlamadan önce
+
+Tüm projelerde aşağıdaki ortak hazırlığı bir kez tamamlayın:
+
+1. PxServ panelinde bir proje oluşturun ve proje API anahtarını alın.
+2. Arduino IDE Board Manager üzerinden ESP32 kart paketini kurun.
+3. Library Manager içinde **PxServ** araması yapıp `1.3.0` veya daha yeni sürümü kurun.
+4. Koddaki `WIFI_SSID`, `WIFI_PASSWORD` ve `PXSERV_API_KEY` alanlarını kendi bilgilerinizle değiştirin.
+5. Kart olarak kullandığınız ESP32 modelini ve doğru seri portu seçin.
+
+API anahtarını herkese açık depolarda paylaşmayın. Gerçek bir ürün geliştirirken kimlik bilgilerini ayrı ve sürüm kontrolü dışında tutulan bir yapılandırma dosyasına taşıyın.
+
+## Seviye seçimi
+
+### Başlangıç — bağlantıyı kur ve sonucu gör
+
+Bu seviyede her proje tek bir ana kavrama odaklanır. Kodu satır satır izleyebilir, devreyi breadboard üzerinde kurabilir ve PxServ panelinde sonucu hemen görebilirsiniz.
+
+### Orta — algıla, karar ver ve kontrol et
+
+Orta seviyede sensör verisi ile aktüatör kontrolü aynı projede buluşur. `millis()` ile periyodik görevler, kalibrasyon, eşik değerleri ve uzaktan çalışma modu gibi pratikler devreye girer.
+
+### İleri — güvenilir cihaz davranışı oluştur
+
+İleri projeler hâlâ takip edilebilir boyuttadır; ancak üretime yaklaşan cihazlarda beklenen güvenli başlangıç, histerezis, hata telemetrisi, görev ayrımı ve OTA güncelleme gibi alışkanlıkları öğretir.
+
+## Ortak elektrik güvenliği
+
+- ESP32 GPIO pinleri **3,3 V lojik** ile çalışır; pinlere 5 V sinyal uygulamayın.
+- HC-SR04 gibi 5 V çıkışlı modüllerde ESP32 girişine uygun gerilim bölücü kullanın.
+- Pompa, motor ve servo gibi yükleri ESP32'nin 3,3 V pininden beslemeyin; ayrı ve yeterli bir güç kaynağı kullanıp GND hatlarını ortaklayın.
+- Röle örnekleri yalnızca güvenli, düşük gerilimli DC yükler içindir. Şebeke gerilimiyle çalışmayın.
+- Sensör modülünüzün pin dizilimini üretici belgesinden doğrulamadan enerji vermeyin.
+
+## PxServ veri modeli
+
+PxServ Arduino kütüphanesi değerleri metin olarak gönderir. Anahtarları kısa tutmak ve projelerin birbirine karışmasını önlemek için yalnızca proje adı önek olarak kullanılır. Örneğin `buzzer/komut`, `sera/sicaklik` veya `gps/durum` yazılır; seviye adı anahtara eklenmez.
+
+```cpp
+client.setData("sicaklik-nem/sicaklik", String(temperature, 1));
+```
+
+## Teknik dayanaklar
+
+Bu seri, [PxServ Arduino kütüphanesinin resmî kaynak kodu](https://github.com/pxsty0/pxserv.arduino), [Arduino dil referansı](https://docs.arduino.cc/language-reference/), [Arduino-ESP32 çevre birimi belgeleri](https://docs.espressif.com/projects/arduino-esp32/en/latest/) ve proje sayfalarında belirtilen sensör üreticisi belgeleri temel alınarak hazırlanmıştır.
+
+Hazırsanız [ilk proje: Buluta Merhaba](/tr/projeler/baslangic/01-buluta-merhaba/) ile başlayın.

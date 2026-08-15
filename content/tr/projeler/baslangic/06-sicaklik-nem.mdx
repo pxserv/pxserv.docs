@@ -1,0 +1,84 @@
+---
+title: Sıcaklık ve Nem Takibi
+description: DHT11 sensöründen sıcaklık ve nem okuyup geçerli değerleri PxServ'e gönderin.
+---
+
+# 6. Sıcaklık ve Nem Takibi
+
+DHT11 sensöründen iki çevresel değeri okuyup PxServ'e gönderin. Okuma başarısız olduğunda hatalı `nan` verisini buluta yollamamak bu projenin temel yazılım pratiğidir.
+
+**Seviye:** Başlangıç · **Süre:** 30 dakika
+
+## Gerekenler
+
+- ESP32 DevKit V1
+- DHT11 modülü
+- Arduino Library Manager'dan **DHT sensor library** ve **Adafruit Unified Sensor**
+
+## Bağlantılar
+
+| DHT11 modülü | ESP32  |
+| ------------ | ------ |
+| VCC          | 3V3    |
+| DATA / OUT   | GPIO 4 |
+| GND          | GND    |
+
+Çıplak dört pinli DHT11 kullanıyorsanız DATA ile 3V3 arasına üretici önerisine uygun pull-up direnci gerekir; üç pinli modüllerde bu direnç genellikle kart üzerindedir.
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+#include <DHT.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int DHT_PIN = 4;
+
+PxServ client(PXSERV_API_KEY);
+DHT dht(DHT_PIN, DHT11);
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  float temperature = dht.readTemperature();
+  float humidity = dht.readHumidity();
+
+  if (isnan(temperature) || isnan(humidity)) {
+    Serial.println("DHT11 okunamadi; veri gonderilmedi.");
+    delay(3000);
+    return;
+  }
+
+  client.setData(
+    "sicaklik-nem/sicaklik",
+    String(temperature, 1)
+  );
+  client.setData(
+    "sicaklik-nem/nem",
+    String(humidity, 1)
+  );
+
+  Serial.print("Sicaklik: ");
+  Serial.print(temperature, 1);
+  Serial.print(" C | Nem: %");
+  Serial.println(humidity, 1);
+  delay(10000);
+}
+```
+
+## Test
+
+Sensöre nefes vermeden elinizi yaklaştırın; değerlerin yavaşça değiştiğini gözlemleyin. DHT11 ucuz ve herkesin tanıdığı klasik bir seçim olduğu için örnekteki 10 saniyelik gönderim aralığını koruyun.
+
+## Sorun giderme
+
+- Sürekli okuma hatası alıyorsanız sensör türünün `DHT11` olduğunu ve DATA pinini kontrol edin.
+- Derleme kütüphane hatası verirse DHT ile birlikte Adafruit Unified Sensor paketini de kurun.
+
+Teknik referans: [Adafruit DHT Arduino rehberi](https://learn.adafruit.com/dht/using-a-dhtxx-sensor-with-arduino)

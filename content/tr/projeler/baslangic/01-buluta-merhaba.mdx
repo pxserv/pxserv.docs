@@ -1,0 +1,81 @@
+---
+title: Buluta Merhaba
+description: ESP32 çalışma süresini PxServ'e göndererek ilk bulut bağlantınızı kurun.
+---
+
+# 1. Buluta Merhaba
+
+ESP32'nin açılıştan beri çalıştığı süreyi her 10 saniyede bir PxServ'e gönderin. Bu ilk proje, sensör veya ek devre olmadan Wi-Fi, API anahtarı ve `setData()` akışını doğrular.
+
+**Seviye:** Başlangıç · **Süre:** 15 dakika
+
+## Kazanımlar
+
+- PxServ istemcisi oluşturmak
+- ESP32'yi Wi-Fi ağına bağlamak
+- Sayısal bir değeri `String` olarak göndermek
+- `PxServ::Callback` ile işlem sonucunu kontrol etmek
+
+## Gerekenler
+
+- ESP32 DevKit V1
+- Veri aktarabilen USB kablosu
+- PxServ Arduino kütüphanesi `1.3.0+`
+
+Bu projede harici devre yoktur; yalnızca kartı USB ile bilgisayara bağlayın.
+
+## PxServ anahtarı
+
+| Anahtar                         | Örnek değer | Anlamı                      |
+| ------------------------------- | ----------- | --------------------------- |
+| `buluta-merhaba/calisma-suresi` | `40`        | Açılıştan beri geçen saniye |
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+
+PxServ client(PXSERV_API_KEY);
+
+void setup() {
+  Serial.begin(115200);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  unsigned long uptimeSeconds = millis() / 1000;
+
+  PxServ::Callback result = client.setData(
+    "buluta-merhaba/calisma-suresi",
+    String(uptimeSeconds)
+  );
+
+  Serial.print("Durum: ");
+  Serial.print(result.status);
+  Serial.print(" | Mesaj: ");
+  Serial.println(result.message);
+
+  delay(10000);
+}
+```
+
+## Çalıştırma ve test
+
+1. Üç bağlantı bilgisini kendi değerlerinizle değiştirin.
+2. Kodu karta yükleyip Seri Monitör'ü `115200` baud ile açın.
+3. Başarılı istekte durum kodunun `200` olduğunu doğrulayın.
+4. PxServ panelinde anahtar değerinin yaklaşık her 10 saniyede arttığını gözlemleyin.
+
+## Kod nasıl çalışır?
+
+`millis()` kart açıldığından beri geçen milisaniyeyi verir. Değer 1000'e bölünür, `String` biçimine çevrilir ve PxServ'e gönderilir. `setData()` aynı anahtar daha önce varsa değerini günceller.
+
+## Sorun giderme
+
+- Bağlantı ekranında kalıyorsa SSID, parola ve 2,4 GHz ağ desteğini kontrol edin.
+- Durum `200` değilse API anahtarının doğru PxServ projesine ait olduğunu doğrulayın.
+- Seri Monitör boşsa baud hızını `115200` seçin ve kartı yeniden başlatın.

@@ -1,0 +1,76 @@
+---
+title: Temperature and Humidity Monitoring
+description: Read a DHT11 and publish only valid temperature and humidity values to PxServ.
+---
+
+# 6. Temperature and Humidity Monitoring
+
+Read two environmental values from a DHT11. The essential software practice is rejecting failed `nan` readings instead of publishing invalid data.
+
+**Level:** Beginner · **Time:** 30 minutes
+
+## Requirements and wiring
+
+- ESP32 DevKit V1 and DHT11 module
+- **DHT sensor library** and **Adafruit Unified Sensor**
+
+| DHT11 module | ESP32  |
+| ------------ | ------ |
+| VCC          | 3V3    |
+| DATA / OUT   | GPIO 4 |
+| GND          | GND    |
+
+A bare four-pin DHT11 normally needs a pull-up from DATA to 3V3; three-pin modules usually include it.
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+#include <DHT.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int DHT_PIN = 4;
+
+PxServ client(PXSERV_API_KEY);
+DHT dht(DHT_PIN, DHT11);
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  float temperature = dht.readTemperature();
+  float humidity = dht.readHumidity();
+
+  if (isnan(temperature) || isnan(humidity)) {
+    Serial.println("DHT11 read failed; nothing published.");
+    delay(3000);
+    return;
+  }
+
+  client.setData(
+    "temperature-humidity/temperature",
+    String(temperature, 1)
+  );
+  client.setData(
+    "temperature-humidity/humidity",
+    String(humidity, 1)
+  );
+
+  Serial.print("Temperature: ");
+  Serial.print(temperature, 1);
+  Serial.print(" C | Humidity: ");
+  Serial.println(humidity, 1);
+  delay(10000);
+}
+```
+
+## Test
+
+Observe slow changes as you move the sensor between rooms. DHT11 is the classic cheap-and-common choice for simple indoor monitoring, so keep the ten-second interval. Continuous failures usually indicate an incorrect sensor type, DATA pin, or missing dependency.
+
+Reference: [Adafruit DHT Arduino guide](https://learn.adafruit.com/dht/using-a-dhtxx-sensor-with-arduino)

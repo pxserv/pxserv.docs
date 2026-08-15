@@ -1,0 +1,116 @@
+---
+title: Smart Tank and Pump Control
+description: Combine ultrasonic level, an independent high switch, and a run-time limit in a safe pump controller.
+---
+
+# 3. Smart Tank and Pump Control
+
+Start filling below a low level and stop above a high level. A high-level switch, invalid-distance check, and maximum run time override both automatic and manual requests.
+
+**Level:** Advanced · **Time:** 70 minutes
+
+## Local safety rules
+
+1. An active high-level switch always stops the pump.
+2. An invalid ultrasonic measurement always stops the pump.
+3. Sixty seconds of continuous operation latches a fault.
+
+Real installations also require a hardware overflow cutoff, dry-run protection, and motor protection.
+
+## Wiring
+
+| Part | ESP32 |
+| --- | --- |
+| HC-SR04 TRIG | GPIO 5 |
+| HC-SR04 ECHO | GPIO 18 through 5 V→3.3 V divider |
+| High-level switch | GPIO 19 to GND; closes at level |
+| Active-low pump driver | GPIO 23 |
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int TRIG_PIN = 5, ECHO_PIN = 18, HIGH_FLOAT_PIN = 19, PUMP_PIN = 23;
+const float EMPTY_CM = 90.0, FULL_CM = 10.0;
+const float START_LEVEL = 30.0, STOP_LEVEL = 80.0;
+const unsigned long MAX_RUN_MS = 60000;
+
+PxServ client(PXSERV_API_KEY);
+bool pumpOn = false, timeoutFault = false;
+unsigned long pumpStartedAt = 0, lastCycleAt = 0;
+
+float readDistanceCm() {
+  digitalWrite(TRIG_PIN, LOW); delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH); delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  unsigned long duration = pulseIn(ECHO_PIN, HIGH, 30000);
+  return duration == 0 ? -1 : duration * 0.0343f / 2.0f;
+}
+
+void setPump(bool enabled) {
+  if (pumpOn == enabled) return;
+  pumpOn = enabled;
+  digitalWrite(PUMP_PIN, enabled ? LOW : HIGH);
+  if (enabled) pumpStartedAt = millis();
+}
+
+void publishState(float level, String state) {
+  client.setData("tank-pump/level", String(level, 1));
+  client.setData("tank-pump/pump", pumpOn ? "1" : "0");
+  client.setData("tank-pump/status", state);
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(TRIG_PIN, OUTPUT); pinMode(ECHO_PIN, INPUT);
+  pinMode(HIGH_FLOAT_PIN, INPUT_PULLUP); pinMode(PUMP_PIN, OUTPUT);
+  digitalWrite(PUMP_PIN, HIGH);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  unsigned long now = millis();
+  if (pumpOn && now - pumpStartedAt >= MAX_RUN_MS) {
+    setPump(false); timeoutFault = true;
+  }
+  if (now - lastCycleAt < 3000) { delay(20); return; }
+  lastCycleAt = now;
+
+  bool highFloatActive = digitalRead(HIGH_FLOAT_PIN) == LOW;
+  float distance = readDistanceCm();
+  if (highFloatActive) { setPump(false); publishState(100, "high-limit"); return; }
+  if (distance < 0) { setPump(false); publishState(-1, "sensor-error"); return; }
+
+  float level = constrain(
+    (EMPTY_CM - distance) * 100.0f / (EMPTY_CM - FULL_CM), 0.0f, 100.0f
+  );
+  PxServ::Callback reset = client.getData("tank-pump/reset-fault");
+  if (reset.status == 200 && reset.data == "1") {
+    timeoutFault = false;
+    client.setData("tank-pump/reset-fault", "0");
+  }
+  if (timeoutFault) { setPump(false); publishState(level, "timeout-fault"); return; }
+
+  String mode = "automatic";
+  PxServ::Callback modeValue = client.getData("tank-pump/mode");
+  if (modeValue.status == 200) mode = modeValue.data;
+  bool request = false;
+  if (mode == "manual") {
+    PxServ::Callback manual = client.getData("tank-pump/manual-command");
+    request = manual.status == 200 && manual.data == "1";
+  } else {
+    request = pumpOn ? level < STOP_LEVEL : level < START_LEVEL;
+  }
+  setPump(request);
+  publishState(level, pumpOn ? "filling" : "waiting");
+}
+```
+
+## Verification
+
+Test with an LED instead of a pump. Confirm start below 30%, stop at 80%, high-switch shutdown, sensor-disconnect shutdown, and the latched timeout fault. Prefer fail-detectable, normally closed safety wiring in a real system.
+

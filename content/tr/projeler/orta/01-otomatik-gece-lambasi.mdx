@@ -1,0 +1,103 @@
+---
+title: Otomatik Gece Lambası
+description: LDR verisi ve PxServ çalışma modunu birleştirerek otomatik veya manuel LED parlaklığı yönetin.
+---
+
+# 1. Otomatik Gece Lambası
+
+Ortam karardıkça LED parlaklığını artırın; PxServ üzerinden `otomatik` ve `manuel` çalışma modları arasında geçin. Proje, sensör ve uzaktan komutun aynı cihaz davranışında nasıl birleştirileceğini gösterir.
+
+**Seviye:** Orta · **Süre:** 40 dakika
+
+## Gerekenler ve bağlantılar
+
+- ESP32 DevKit V1, LDR, 10 kΩ direnç, LED ve 220–330 Ω direnç
+
+| Parça | ESP32 bağlantısı |
+| --- | --- |
+| LDR ölçüm noktası | GPIO 34; `3V3 → LDR → GPIO34 → 10 kΩ → GND` |
+| LED anot | GPIO 23 üzerinden 220–330 Ω |
+| LED katot | GND |
+
+## PxServ anahtarları
+
+| Anahtar | Değer |
+| --- | --- |
+| `gece-lambasi/mod` | `otomatik` veya `manuel` |
+| `gece-lambasi/manuel-parlaklik` | `0–100` |
+| `gece-lambasi/isik` | Ölçülen ışık yüzdesi |
+| `gece-lambasi/parlaklik` | Uygulanan LED yüzdesi |
+
+İlk çalıştırmadan önce `mod=otomatik` ve `manuel-parlaklik=0` anahtarlarını oluşturun.
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int LDR_PIN = 34;
+const int LED_PIN = 23;
+
+PxServ client(PXSERV_API_KEY);
+String mode = "otomatik";
+int manualBrightness = 0;
+unsigned long lastCommandAt = 0;
+unsigned long lastTelemetryAt = 0;
+
+void readCommands() {
+  PxServ::Callback modeResult = client.getData("gece-lambasi/mod");
+  if (modeResult.status == 200) mode = modeResult.data;
+
+  PxServ::Callback brightnessResult = client.getData(
+    "gece-lambasi/manuel-parlaklik"
+  );
+  if (brightnessResult.status == 200) {
+    manualBrightness = constrain(brightnessResult.data.toInt(), 0, 100);
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
+  analogReadResolution(12);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  unsigned long now = millis();
+
+  if (now - lastCommandAt >= 3000) {
+    lastCommandAt = now;
+    readCommands();
+  }
+
+  int rawLight = analogRead(LDR_PIN);
+  int lightPercent = constrain(map(rawLight, 0, 4095, 0, 100), 0, 100);
+  int brightness = mode == "manuel" ? manualBrightness : 100 - lightPercent;
+  brightness = constrain(brightness, 0, 100);
+  analogWrite(LED_PIN, map(brightness, 0, 100, 0, 255));
+
+  if (now - lastTelemetryAt >= 10000) {
+    lastTelemetryAt = now;
+    client.setData("gece-lambasi/isik", String(lightPercent));
+    client.setData("gece-lambasi/parlaklik", String(brightness));
+    client.setData("gece-lambasi/aktif-mod", mode);
+  }
+
+  delay(20);
+}
+```
+
+## Test senaryosu
+
+1. `otomatik` modda LDR'yi kapatın; LED parlaklaşmalıdır.
+2. `mod` değerini `manuel`, parlaklığı `25` yapın; ortam ışığından bağımsız yaklaşık %25 parlaklık beklenir.
+3. Manuel değere `250` girin; `constrain()` sayesinde cihaz güvenli aralık olan 100'ü uygular.
+
+## Ayarlama
+
+LED davranışı tersse LDR gerilim bölücünüz farklı yöndedir. Otomatik satırdaki `100 - lightPercent` ifadesini `lightPercent` olarak değiştirin veya LDR ile direncin yerini değiştirin.
+

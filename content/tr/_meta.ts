@@ -1,10 +1,10 @@
 export default {
   'hizli-baslangic': 'Hızlı Başlangıç',
+  'arduino-kutuphanesi': 'Arduino Kütüphanesi',
   'sdk-separator': {
     type: 'separator',
     title: 'SDK’lar'
   },
-  'arduino-kutuphanesi': 'Arduino Kütüphanesi',
   'javascript-typescript-kutuphanesi': 'JavaScript / TypeScript',
   'rust-kutuphanesi': 'Rust Kütüphanesi',
   'harita-ozelligi': 'Harita Özelliği',
@@ -18,5 +18,12 @@ export default {
     type: 'separator',
     title: 'API’ler'
   },
-  'rest-api': 'REST API'
+  'rest-api': 'REST API',
+  'projeler': {
+    display: 'children'
+  },
+  'projects-separator': {
+    type: 'separator',
+    title: 'Projeler'
+  }
 }

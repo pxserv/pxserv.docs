@@ -1,0 +1,70 @@
+---
+title: BME280 Mini Hava İstasyonu
+description: BME280 sıcaklık, basınç ve yaklaşık yükseklik verilerini I²C üzerinden okuyup PxServ'e gönderin.
+---
+
+# 10. BME280 Mini Hava İstasyonu
+
+BME280 ile sıcaklık, atmosfer basıncını ve yaygın olarak aynı modülde bulunan nemi ölçün; seçilen deniz seviyesi basıncına göre yaklaşık yükseklik hesaplayın.
+
+**Seviye:** Orta · **Süre:** 45 dakika
+
+## Gerekenler ve bağlantılar
+
+- ESP32 DevKit V1, BME280 I²C modülü
+- **Adafruit BME280 Library**, **Adafruit Unified Sensor** ve **Adafruit BusIO**
+
+| BME280    | ESP32                               |
+| --------- | ----------------------------------- |
+| VIN / GND | Modülünüz 3,3 V uyumluysa 3V3 / GND |
+| SDA       | GPIO 21                             |
+| SCL       | GPIO 22                             |
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+#include <Wire.h>
+#include <Adafruit_BME280.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const float SEA_LEVEL_HPA = 1013.25;
+
+PxServ client(PXSERV_API_KEY);
+Adafruit_BME280 bme;
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(21, 22);
+
+  if (!bme.begin(0x76)) {
+    Serial.println("BME280 bulunamadi. 0x76/0x77 adresini kontrol edin.");
+    while (true) delay(1000);
+  }
+
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  float temperature = bme.readTemperature();
+  float pressure = bme.readPressure() / 100.0f;
+  float altitude = bme.readAltitude(SEA_LEVEL_HPA);
+
+  client.setData("hava/sicaklik", String(temperature, 1));
+  client.setData("hava/basinc-hpa", String(pressure, 1));
+  client.setData("hava/yukseklik-m", String(altitude, 1));
+
+  Serial.print("Basinc: ");
+  Serial.print(pressure, 1);
+  Serial.println(" hPa");
+  delay(30000);
+}
+```
+
+## Test ve doğruluk
+
+Sensör bulunmazsa I²C adresi `0x77` olabilir; `bme.begin(0x76)` satırını değiştirin. Yükseklik değeri yerel deniz seviyesi basıncına bağlıdır; güncel yerel değeri `SEA_LEVEL_HPA` alanına girin. BME280, tek modülde sıcaklık, basınç ve nem ölçtüğü için yaygın bir tercihtir.
+
+Teknik referans: [Adafruit BME280 ürün rehberi](https://learn.adafruit.com/adafruit-bme280-humidity-barometer-thermometer-sensor)

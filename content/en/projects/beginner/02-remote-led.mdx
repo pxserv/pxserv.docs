@@ -1,0 +1,69 @@
+---
+title: Remote LED Control
+description: Read a PxServ command and switch an ESP32-connected LED remotely.
+---
+
+# 2. Remote LED Control
+
+Read a `0` or `1` value from PxServ and apply it to an LED. This introduces cloud-to-device data flow through `getData()`.
+
+**Level:** Beginner · **Time:** 20 minutes
+
+## Parts and wiring
+
+- ESP32 DevKit V1
+- LED and 220–330 Ω resistor
+
+| LED side | Connection |
+| --- | --- |
+| Anode, long leg | GPIO 23 through the resistor |
+| Cathode, short leg | GND |
+
+## PxServ keys
+
+| Key | Value | Meaning |
+| --- | --- | --- |
+| `remote-led/command` | `0` / `1` | Requested off / on state |
+| `remote-led/status` | `0` / `1` | State applied by the device |
+
+Create `remote-led/command` with value `0` before starting the device.
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int LED_PIN = 23;
+
+PxServ client(PXSERV_API_KEY);
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  PxServ::Callback result = client.getData("remote-led/command");
+
+  if (result.status == 200) {
+    bool ledOn = result.data == "1";
+    digitalWrite(LED_PIN, ledOn ? HIGH : LOW);
+    client.setData("remote-led/status", ledOn ? "1" : "0");
+    Serial.println(ledOn ? "LED on" : "LED off");
+  } else {
+    Serial.print("Command read failed: ");
+    Serial.println(result.message);
+  }
+  delay(2000);
+}
+```
+
+## Test and troubleshooting
+
+Set the command to `1`, then `0`. The LED and reported status should follow within two seconds. If the LED does not light, reverse it and confirm the series resistor. If the read fails, compare the exact key and API key with the panel.
+

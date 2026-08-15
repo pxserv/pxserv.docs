@@ -1,0 +1,57 @@
+---
+title: Project List
+description: A 25-project learning path from first maker build to production-minded IoT devices with PxServ and ESP32.
+asIndexPage: true
+---
+
+import { Callout } from "nextra/components";
+
+# Project List
+
+This section takes you from your first cloud-connected sensor to clear, production-minded device patterns through **25 practical projects**. Every project includes objectives, parts, a wiring table, PxServ keys, complete firmware examples, a test procedure, and troubleshooting or safety guidance.
+
+## Learning path
+
+| Level                                      | Projects | Focus                                                    |
+| ------------------------------------------ | -------: | -------------------------------------------------------- |
+| [Beginner](/en/projects/beginner/)         |       10 | GPIO, basic sensors, `setData()`, and `getData()`        |
+| [Intermediate](/en/projects/intermediate/) |       10 | Multiple tasks, remote commands, calibration, and alarms |
+| [Advanced](/en/projects/advanced/)         |        5 | Hysteresis, safe states, telemetry, maps, and OTA        |
+
+<Callout type="info">
+  <strong>Common development board</strong>
+  <div>
+    Examples target an ESP32 DevKit V1 in Arduino IDE. PxServ also supports
+    ESP8266, but pin names, ADC ranges, and peripheral APIs must be adapted.
+  </div>
+</Callout>
+
+## One-time setup
+
+1. Create a PxServ project and copy its project API key.
+2. Install the ESP32 board package in Arduino IDE.
+3. Install PxServ `1.3.0` or newer through Library Manager.
+4. Replace `WIFI_SSID`, `WIFI_PASSWORD`, and `PXSERV_API_KEY` in each sketch.
+5. Select your exact ESP32 board and serial port.
+
+Never publish your API key. In a real product, keep credentials in a separate configuration file excluded from version control.
+
+## Electrical safety
+
+- ESP32 GPIO uses **3.3 V logic**; never apply a 5 V signal directly.
+- Level-shift 5 V outputs such as HC-SR04 ECHO before connecting them to ESP32.
+- Power pumps, motors, and servos from a suitable external supply and share GND.
+- Relay examples are for safe, low-voltage DC loads only. Do not work with mains voltage.
+- Confirm your module's pinout and voltage limits in its manufacturer documentation.
+
+## PxServ key model
+
+PxServ sends values as strings. Keys use only a short project prefix—such as `buzzer/command`, `greenhouse/temperature`, or `gps/status`—without a skill-level prefix.
+
+```cpp
+client.setData("temperature-humidity/temperature", String(temperature, 1));
+```
+
+The series is based on the [official PxServ Arduino source](https://github.com/pxsty0/pxserv.arduino), the [Arduino language reference](https://docs.arduino.cc/language-reference/), [Arduino-ESP32 documentation](https://docs.espressif.com/projects/arduino-esp32/en/latest/), and the sensor references linked in each project.
+
+Start with [Cloud Hello](/en/projects/beginner/01-cloud-hello/).

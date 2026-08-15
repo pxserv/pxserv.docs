@@ -1,0 +1,76 @@
+---
+title: Remote Buzzer Control
+description: Control an active buzzer from PxServ with a safe off state on command errors.
+---
+
+# 10. Remote Buzzer Control
+
+Read a command from PxServ and control a low-current active buzzer module. If the command cannot be read, the output returns to its safe off state.
+
+**Level:** Beginner · **Time:** 25 minutes
+
+## Parts and wiring
+
+- ESP32 DevKit V1 and 3.3 V-compatible active buzzer module
+
+| Buzzer module | ESP32 |
+| --- | --- |
+| VCC | 3V3 |
+| I/O or SIG | GPIO 23 |
+| GND | GND |
+
+Do not connect a bare or high-current buzzer directly to GPIO; use a suitable transistor driver.
+
+## PxServ keys
+
+| Key | Value |
+| --- | --- |
+| `buzzer/command` | `0` / `1` |
+| `buzzer/status` | Applied device state |
+
+Create the command with value `0` before starting.
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int BUZZER_PIN = 23;
+
+PxServ client(PXSERV_API_KEY);
+
+void setBuzzer(bool enabled) {
+  digitalWrite(BUZZER_PIN, enabled ? HIGH : LOW);
+  client.setData("buzzer/status", enabled ? "1" : "0");
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+  setBuzzer(false);
+}
+
+void loop() {
+  PxServ::Callback command = client.getData("buzzer/command");
+  if (command.status == 200) {
+    bool enabled = command.data == "1";
+    setBuzzer(enabled);
+    Serial.println(enabled ? "Buzzer on" : "Buzzer off");
+  } else {
+    digitalWrite(BUZZER_PIN, LOW);
+    Serial.println("Command failed; buzzer forced off");
+  }
+  delay(2000);
+}
+```
+
+## Test
+
+Change the command from `0` to `1` and back. Confirm both the physical output and reported status. Swap the output levels if your module is active-low.
+
+Continue with [Intermediate: Automatic Night Light](/en/projects/intermediate/01-automatic-night-light/).

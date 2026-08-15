@@ -1,0 +1,106 @@
+---
+title: OTA Destekli Saha Cihazı
+description: DHT22 telemetrisi, cihaz sağlık verileri ve PxServ OTA kontrolünü bloklamayan bir döngüde birleştirin.
+---
+
+# 5. OTA Destekli Saha Cihazı
+
+Bir saha cihazının yalnızca iş verisini değil; firmware sürümü, Wi-Fi sinyali, çalışma süresi ve boş bellek gibi sağlık göstergelerini de yayınlamasını sağlayın. PxServ OTA kontrolü her döngüde çağrılırken telemetri ayrı zamanlanır.
+
+**Seviye:** İleri · **Süre:** 60 dakika
+
+## Neden son proje?
+
+OTA, cihaz sahaya çıktıktan sonra kodu değiştirme yeteneği verir. Bu yetenek; sürüm takibi, güvenilir güç, yeterli flash alanı, test cihazı ve kontrollü dağıtım süreci olmadan kullanılmamalıdır.
+
+## Gerekenler ve bağlantılar
+
+- ESP32 DevKit V1
+- DHT22 modülü: VCC→3V3, GND→GND, DATA→GPIO 4
+- PxServ Arduino kütüphanesi `1.3.0+`
+- **DHT sensor library** ve **Adafruit Unified Sensor**
+- Arduino IDE'de OTA'ya uygun, uygulama için yeterli alan bırakan partition seçimi
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+#include <DHT.h>
+#include <WiFi.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const char* FIRMWARE_VERSION = "1.0.0";
+const int DHT_PIN = 4;
+const unsigned long TELEMETRY_INTERVAL_MS = 30000;
+
+PxServ client(PXSERV_API_KEY);
+DHT dht(DHT_PIN, DHT22);
+unsigned long lastTelemetryAt = 0;
+
+void publishHealth() {
+  float temperature = dht.readTemperature();
+  float humidity = dht.readHumidity();
+  bool sensorValid = !isnan(temperature) && !isnan(humidity);
+
+  if (sensorValid) {
+    client.setData("saha/sicaklik", String(temperature, 1));
+    client.setData("saha/nem", String(humidity, 1));
+  }
+
+  client.setData("saha/sensor-durum", sensorValid ? "normal" : "hata");
+  client.setData("saha/firmware", client.getDeviceFirmwareVersion());
+  client.setData("saha/calisma-suresi-sn", String(millis() / 1000));
+  client.setData("saha/bos-heap-byte", String(ESP.getFreeHeap()));
+  client.setData("saha/wifi-rssi-dbm", String(WiFi.RSSI()));
+  client.setData("saha/cihaz-durum", "cevrimici");
+}
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+  client.setDeviceFirmwareVersion(FIRMWARE_VERSION);
+  publishHealth();
+}
+
+void loop() {
+  unsigned long now = millis();
+
+  if (now - lastTelemetryAt >= TELEMETRY_INTERVAL_MS) {
+    lastTelemetryAt = now;
+    publishHealth();
+  }
+
+  // Kütüphane kendi 10 saniyelik OTA kontrol aralığını uygular.
+  client.checkOtaFirmware();
+  delay(20);
+}
+```
+
+## İlk yükleme ve güncelleme akışı
+
+1. `FIRMWARE_VERSION` değerini `1.0.0` bırakıp OTA destekli ilk firmware'i USB ile yükleyin.
+2. PxServ panelinde sağlık anahtarlarının oluştuğunu doğrulayın.
+3. Görsel bir değişiklik ekleyin ve sürümü `1.0.1` yapın; OTA kodunu kesinlikle kaldırmayın.
+4. Arduino IDE'de **Sketch → Export Compiled Binary** ile ana `.bin` firmware dosyasını oluşturun.
+5. Önce yedek/test cihazında, kararlı güç ve Wi-Fi altında PxServ OTA akışını deneyin.
+6. Güncelleme sonrası `firmware=1.0.1` ve çalışma süresinin yeniden başladığını doğrulayın.
+
+Ayrıntılı panel ve firmware adımları için [OTA Özelliği](/tr/ota-ozelligi/) sayfasını kullanın.
+
+## Üretim güvenliği notu
+
+PxServ Arduino `1.3.0` kaynak kodundaki HTTPS istemcisi sertifika doğrulamasını devre dışı bırakan `setInsecure()` çağrısını kullanır ve örnek akışta ayrıca firmware imza doğrulaması görünmez. Güvenlik açısından kritik veya ticari dağıtımlarda tehdit modelinizi değerlendirin; doğrulanmış/signed firmware, bütünlük kontrolü, kademeli dağıtım, geri dönüş stratejisi ve fiziksel kurtarma yolu olmadan OTA'ya güvenmeyin.
+
+## Kabul kontrol listesi
+
+- Yanlış veya bozuk sensör okuması diğer sağlık verilerinin gönderimini durdurmuyor.
+- Cihaz firmware sürümünü panelde açıkça bildiriyor.
+- OTA güncellemesi yalnızca test cihazında doğrulandıktan sonra dağıtılıyor.
+- Yeni firmware içinde OTA çağrıları korunuyor.
+- Güç kesintisi ve ağ kopması senaryoları test ediliyor.
+- Son kararlı firmware ve USB kurtarma erişimi saklanıyor.
+
+Tebrikler—25 projelik yolu tamamladınız. API metotlarını ayrıntılı incelemek için [Arduino Kütüphanesi](/tr/arduino-kutuphanesi/) sayfasına dönün.

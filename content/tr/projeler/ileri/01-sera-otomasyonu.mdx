@@ -1,0 +1,180 @@
+---
+title: Sera Otomasyonu
+description: Sıcaklık ve toprak nemini histerezis ve süre korumalarıyla değerlendirerek fan ve pompayı yönetin.
+---
+
+# 1. Sera Otomasyonu
+
+DHT22 ve kapasitif toprak nem sensörünü aynı cihazda birleştirin. Fan, sıcaklık histerezisiyle; pompa ise kısa çalışma darbeleri ve bekleme süresiyle yönetilir. PxServ cihazı uzaktan etkinleştirir ve bütün kararları izlenebilir hale getirir.
+
+**Seviye:** İleri · **Süre:** 70 dakika
+
+## Tasarım hedefleri
+
+- Birden fazla sensör ve aktüatörü bloklamayan görevlerle yönetmek
+- Eşik çevresinde rölenin sürekli açılıp kapanmasını histerezisle önlemek
+- Pompa çalışma süresi ve tekrar bekleme süresi belirlemek
+- Sensör hatasında aktüatörleri kapatmak
+
+## Güvenlik ve donanım
+
+Bu masaüstü prototipte yalnızca düşük gerilimli DC fan ve pompa kullanın. Yükleri ESP32'den beslemeyin; uygun röle/MOSFET sürücüler, ayrı güç kaynağı, ortak GND ve endüktif yük koruması kullanın. Su ile elektroniği fiziksel olarak ayırın.
+
+| Parça | ESP32 |
+| --- | --- |
+| DHT22 DATA | GPIO 4 |
+| Toprak sensörü AOUT | GPIO 34 |
+| Fan sürücü IN | GPIO 25 |
+| Pompa sürücü IN | GPIO 26 |
+
+Örnek, iki sürücünün de aktif-LOW olduğunu varsayar.
+
+## PxServ yapılandırması
+
+| Anahtar | İlk değer |
+| --- | --- |
+| `sera/sistem-aktif` | `1` |
+| `sera/fan-ac` | `30` |
+| `sera/fan-kapat` | `28` |
+| `sera/sulama-esigi` | `30` |
+
+`fan-kapat`, `fan-ac` değerinden düşük olmalıdır; aradaki fark histerezis bandıdır.
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+#include <DHT.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int DHT_PIN = 4;
+const int SOIL_PIN = 34;
+const int FAN_PIN = 25;
+const int PUMP_PIN = 26;
+const int DRY_VALUE = 3000;  // Kalibre edin
+const int WET_VALUE = 1400;  // Kalibre edin
+
+const unsigned long PUMP_RUN_MS = 5000;
+const unsigned long PUMP_COOLDOWN_MS = 60000;
+
+PxServ client(PXSERV_API_KEY);
+DHT dht(DHT_PIN, DHT22);
+
+bool systemEnabled = true;
+bool fanOn = false;
+bool pumpOn = false;
+float fanOnAt = 30.0;
+float fanOffAt = 28.0;
+int wateringThreshold = 30;
+unsigned long pumpStartedAt = 0;
+unsigned long pumpStoppedAt = 0;
+unsigned long lastSensorAt = 0;
+unsigned long lastConfigAt = 0;
+
+void setOutput(int pin, bool enabled) {
+  digitalWrite(pin, enabled ? LOW : HIGH);
+}
+
+void setPump(bool enabled) {
+  pumpOn = enabled;
+  setOutput(PUMP_PIN, enabled);
+  if (enabled) pumpStartedAt = millis();
+  else pumpStoppedAt = millis();
+}
+
+void readConfig() {
+  PxServ::Callback active = client.getData("sera/sistem-aktif");
+  if (active.status == 200) systemEnabled = active.data == "1";
+
+  PxServ::Callback onValue = client.getData("sera/fan-ac");
+  if (onValue.status == 200) fanOnAt = onValue.data.toFloat();
+
+  PxServ::Callback offValue = client.getData("sera/fan-kapat");
+  if (offValue.status == 200) fanOffAt = offValue.data.toFloat();
+
+  PxServ::Callback soilValue = client.getData("sera/sulama-esigi");
+  if (soilValue.status == 200) {
+    wateringThreshold = constrain(soilValue.data.toInt(), 0, 100);
+  }
+}
+
+void safeStop(String reason) {
+  fanOn = false;
+  setOutput(FAN_PIN, false);
+  if (pumpOn) setPump(false);
+  client.setData("sera/durum", reason);
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(FAN_PIN, OUTPUT);
+  pinMode(PUMP_PIN, OUTPUT);
+  setOutput(FAN_PIN, false);
+  setOutput(PUMP_PIN, false);
+  analogReadResolution(12);
+  dht.begin();
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  unsigned long now = millis();
+
+  if (pumpOn && now - pumpStartedAt >= PUMP_RUN_MS) setPump(false);
+
+  if (now - lastConfigAt >= 30000) {
+    lastConfigAt = now;
+    readConfig();
+  }
+
+  if (now - lastSensorAt < 10000) {
+    delay(20);
+    return;
+  }
+  lastSensorAt = now;
+
+  float temperature = dht.readTemperature();
+  int soilRaw = analogRead(SOIL_PIN);
+  int soil = constrain(map(soilRaw, DRY_VALUE, WET_VALUE, 0, 100), 0, 100);
+
+  if (!systemEnabled) {
+    safeStop("uzaktan-kapali");
+    return;
+  }
+  if (isnan(temperature)) {
+    safeStop("sensor-hatasi");
+    return;
+  }
+  if (fanOffAt >= fanOnAt) {
+    safeStop("ayar-hatasi");
+    return;
+  }
+
+  if (!fanOn && temperature >= fanOnAt) fanOn = true;
+  if (fanOn && temperature <= fanOffAt) fanOn = false;
+  setOutput(FAN_PIN, fanOn);
+
+  bool cooldownReady = now - pumpStoppedAt >= PUMP_COOLDOWN_MS;
+  if (!pumpOn && soil < wateringThreshold && cooldownReady) setPump(true);
+
+  client.setData("sera/sicaklik", String(temperature, 1));
+  client.setData("sera/toprak-nemi", String(soil));
+  client.setData("sera/fan-durum", fanOn ? "1" : "0");
+  client.setData("sera/pompa-durum", pumpOn ? "1" : "0");
+  client.setData("sera/durum", "normal");
+}
+```
+
+## Devreye alma sırası
+
+1. Fan ve pompa bağlı değilken sensörleri ve PxServ telemetrisini doğrulayın.
+2. Sürücü çıkışlarını yük yerine LED ile test edin; aktif seviyeyi kontrol edin.
+3. `fan-ac` ve `fan-kapat` değerlerini oda sıcaklığı çevresinde değiştirip histerezisi gözlemleyin.
+4. Pompa rölesinin beş saniye sonra durduğunu ve bir dakika beklemeden yeniden başlamadığını doğrulayın.
+5. Sensörü çıkarıp tüm çıkışların kapandığını test edin.
+
+## Üretime taşırken
+
+Su haznesi seviyesi, akış doğrulaması, röle geri bildirimi, bağımsız termal sigorta ve kalıcı yapılandırma ekleyin. Ağ komutu hiçbir zaman donanımsal güvenlik sınırını geçersiz kılmamalıdır.
+

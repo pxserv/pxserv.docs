@@ -1,0 +1,84 @@
+---
+title: Bulut Bağlantılı Buton Sayacı
+description: Fiziksel butona her basıldığında sayacı artırıp PxServ'e gönderin.
+---
+
+# 3. Bulut Bağlantılı Buton Sayacı
+
+Her geçerli buton basışını sayın ve toplamı PxServ'e gönderin. Proje, dijital girişte dahili pull-up kullanımını ve basit buton sıçraması önlemeyi öğretir.
+
+**Seviye:** Başlangıç · **Süre:** 25 dakika
+
+## Gerekenler
+
+- ESP32 DevKit V1
+- Anlık basmalı buton
+- Breadboard ve jumper kablolar
+
+## Bağlantılar
+
+| Buton ucu | Bağlantı |
+| --------- | -------- |
+| 1         | GPIO 18  |
+| 2         | GND      |
+
+Kod `INPUT_PULLUP` kullandığı için harici direnç gerekmez. Butona basılmadığında giriş `HIGH`, basıldığında `LOW` okunur.
+
+## PxServ anahtarı
+
+| Anahtar               | Örnek değer |
+| --------------------- | ----------- |
+| `buton-sayaci/toplam` | `7`         |
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int BUTTON_PIN = 18;
+
+PxServ client(PXSERV_API_KEY);
+unsigned long pressCount = 0;
+bool previousButton = HIGH;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+  client.setData("buton-sayaci/toplam", "0");
+}
+
+void loop() {
+  bool currentButton = digitalRead(BUTTON_PIN);
+
+  if (previousButton == HIGH && currentButton == LOW) {
+    delay(25);
+    if (digitalRead(BUTTON_PIN) == LOW) {
+      pressCount++;
+      PxServ::Callback result = client.setData(
+        "buton-sayaci/toplam",
+        String(pressCount)
+      );
+      Serial.print("Toplam: ");
+      Serial.print(pressCount);
+      Serial.print(" | Durum: ");
+      Serial.println(result.status);
+    }
+  }
+
+  previousButton = currentButton;
+  delay(10);
+}
+```
+
+## Test
+
+Butona kontrollü biçimde beş kez basın. Seri Monitör ve PxServ paneli `5` göstermelidir. Kart yeniden başladığında bu öğretici sayaç sıfırlanır; kalıcı sayaç sonraki aşamalarda cihaz belleği veya buluttaki mevcut değer okunarak geliştirilebilir.
+
+## Sorun giderme
+
+- Tek basış birden fazla sayılıyorsa buton temasları gürültülüdür; `delay(25)` değerini 40–50 ms deneyin.
+- Sayaç hiç artmıyorsa butonun breadboard üzerindeki doğru karşılıklı bacaklarını kullandığınızdan emin olun.

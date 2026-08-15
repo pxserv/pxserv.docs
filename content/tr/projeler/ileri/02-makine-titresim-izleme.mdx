@@ -1,0 +1,113 @@
+---
+title: Makine Titreşim İzleme
+description: MPU6050 ivme örneklerinden basit titreşim göstergesi hesaplayıp eşik alarmını PxServ'e gönderin.
+---
+
+# 2. Makine Titreşim İzleme
+
+MPU6050 ivmeölçerden kısa bir örnek penceresi alın ve yerçekimi büyüklüğünden sapmaların karekök ortalamasını titreşim göstergesi olarak hesaplayın. Bu değer, aynı makinede zaman içindeki değişimi gözlemek içindir.
+
+**Seviye:** İleri · **Süre:** 60 dakika
+
+## Önemli kapsam
+
+Bu proje sertifikalı kestirimci bakım veya iş güvenliği cihazı değildir. Ölçüm; sensör montajı, örnekleme frekansı, makine devri ve gövde rezonansından güçlü biçimde etkilenir. Eşiği yalnızca kendi normal çalışma taban ölçümünüze göre belirleyin.
+
+## Gerekenler ve bağlantılar
+
+- ESP32, MPU6050 modülü, uyarı LED'i ve 220–330 Ω direnç
+- **Adafruit MPU6050**, **Adafruit Unified Sensor**, **Adafruit BusIO**
+
+| Parça | ESP32 |
+| --- | --- |
+| MPU6050 SDA / SCL | GPIO 21 / GPIO 22 |
+| MPU6050 VCC / GND | Modül 3,3 V uyumluysa 3V3 / GND |
+| Alarm LED'i | GPIO 23 üzerinden direnç, katot GND |
+
+Sensörü makineye enerjisi kesilmişken, sabit ve tekrarlanabilir yönde monte edin.
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+#include <Wire.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int ALARM_LED = 23;
+const int SAMPLE_COUNT = 100;
+const unsigned long SAMPLE_INTERVAL_US = 5000;
+
+PxServ client(PXSERV_API_KEY);
+Adafruit_MPU6050 mpu;
+float alarmThreshold = 2.0;
+unsigned long lastMeasurementAt = 0;
+
+float measureVibration() {
+  float sumSquares = 0;
+  for (int i = 0; i < SAMPLE_COUNT; i++) {
+    sensors_event_t acceleration, gyro, temperature;
+    mpu.getEvent(&acceleration, &gyro, &temperature);
+
+    float magnitude = sqrt(
+      acceleration.acceleration.x * acceleration.acceleration.x +
+      acceleration.acceleration.y * acceleration.acceleration.y +
+      acceleration.acceleration.z * acceleration.acceleration.z
+    );
+    float dynamicPart = magnitude - 9.81f;
+    sumSquares += dynamicPart * dynamicPart;
+    delayMicroseconds(SAMPLE_INTERVAL_US);
+  }
+  return sqrt(sumSquares / SAMPLE_COUNT);
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(ALARM_LED, OUTPUT);
+  digitalWrite(ALARM_LED, LOW);
+  Wire.begin(21, 22);
+
+  if (!mpu.begin()) {
+    Serial.println("MPU6050 bulunamadi.");
+    while (true) delay(1000);
+  }
+  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+  mpu.setFilterBandwidth(MPU6050_BAND_44_HZ);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  if (millis() - lastMeasurementAt < 10000) {
+    delay(20);
+    return;
+  }
+  lastMeasurementAt = millis();
+
+  PxServ::Callback threshold = client.getData("titresim/alarm-esigi");
+  if (threshold.status == 200) alarmThreshold = threshold.data.toFloat();
+
+  float vibration = measureVibration();
+  bool alarm = vibration > alarmThreshold;
+  digitalWrite(ALARM_LED, alarm ? HIGH : LOW);
+
+  client.setData("titresim/gosterge", String(vibration, 3));
+  client.setData("titresim/esik", String(alarmThreshold, 3));
+  client.setData("titresim/durum", alarm ? "alarm" : "normal");
+  Serial.println(vibration, 3);
+}
+```
+
+## Taban ölçümü ve test
+
+1. Makine kapalıyken 10 ölçümün tipik aralığını not edin.
+2. Normal çalışmada en az 20 ölçüm alın ve kararlı üst sınırı belirleyin.
+3. Alarm eşiğini normal üst sınırın makul ölçüde üzerine koyun.
+4. Sensörü elinizle hafifçe hareket ettirerek alarm akışını test edin; çalışan makineye müdahale etmeyin.
+
+`5 ms × 100` örnek yaklaşık yarım saniyelik pencere oluşturur. Bu gösterge frekans spektrumu sağlamaz; sadece tekrarlanabilir bir karşılaştırma metriğidir.
+
+Teknik referans: [Adafruit MPU6050 Arduino rehberi](https://learn.adafruit.com/mpu6050-6-dof-accelerometer-and-gyro/arduino)
+

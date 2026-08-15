@@ -1,0 +1,169 @@
+---
+title: Akıllı Depo ve Pompa Kontrolü
+description: Ultrasonik seviye, bağımsız üst şalter ve süre sınırıyla güvenli pompa durum makinesi kurun.
+---
+
+# 3. Akıllı Depo ve Pompa Kontrolü
+
+Depo seviyesini ultrasonik sensörle ölçün, düşük seviyede dolum pompasını çalıştırın ve yüksek seviyede durdurun. Bağımsız üst seviye şalteri, hatalı mesafe ve maksimum çalışma süresi her modda pompayı kapatabilir.
+
+**Seviye:** İleri · **Süre:** 70 dakika
+
+## Güvenlik mimarisi
+
+Örnekte PxServ komutu yalnızca çalışma isteği verir. Şu üç yerel sınır uzaktan komuttan daha önceliklidir:
+
+1. Üst seviye şalteri aktifse pompa kapanır.
+2. Ultrasonik ölçüm geçersizse pompa kapanır.
+3. Pompa 60 saniyeden uzun çalışırsa hata durumuna geçilir.
+
+Gerçek tesislerde bunlara ek olarak donanımsal taşma kesicisi, kuru çalışma koruması ve motor koruması kullanılır.
+
+## Bağlantılar
+
+| Parça | ESP32 |
+| --- | --- |
+| HC-SR04 TRIG | GPIO 5 |
+| HC-SR04 ECHO | 5 V → 3,3 V gerilim bölücü üzerinden GPIO 18 |
+| Üst seviye şalteri | GPIO 19 ile GND; seviyede kapanan kontak |
+| Pompa sürücü IN | GPIO 23; örnekte aktif-LOW |
+
+Pompa ve sensör güç/güvenlik notları için önce [proje yol haritasını](/tr/projeler/) okuyun.
+
+## PxServ komutları
+
+- `depo-pompa/mod`: `otomatik` veya `manuel`
+- `depo-pompa/manuel-komut`: `0` veya `1`
+- `depo-pompa/hata-sifirla`: normalde `0`; süre hatasından sonra bir kez `1`
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int TRIG_PIN = 5;
+const int ECHO_PIN = 18;
+const int HIGH_FLOAT_PIN = 19;
+const int PUMP_PIN = 23;
+
+const float EMPTY_CM = 90.0;
+const float FULL_CM = 10.0;
+const float START_LEVEL = 30.0;
+const float STOP_LEVEL = 80.0;
+const unsigned long MAX_RUN_MS = 60000;
+
+PxServ client(PXSERV_API_KEY);
+bool pumpOn = false;
+bool timeoutFault = false;
+unsigned long pumpStartedAt = 0;
+unsigned long lastCycleAt = 0;
+
+float readDistanceCm() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  unsigned long duration = pulseIn(ECHO_PIN, HIGH, 30000);
+  return duration == 0 ? -1 : duration * 0.0343f / 2.0f;
+}
+
+void setPump(bool enabled) {
+  if (pumpOn == enabled) return;
+  pumpOn = enabled;
+  digitalWrite(PUMP_PIN, enabled ? LOW : HIGH);
+  if (enabled) pumpStartedAt = millis();
+}
+
+void publishState(float level, String state) {
+  client.setData("depo-pompa/seviye", String(level, 1));
+  client.setData("depo-pompa/pompa", pumpOn ? "1" : "0");
+  client.setData("depo-pompa/durum", state);
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  pinMode(HIGH_FLOAT_PIN, INPUT_PULLUP);
+  pinMode(PUMP_PIN, OUTPUT);
+  digitalWrite(PUMP_PIN, HIGH);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  unsigned long now = millis();
+
+  if (pumpOn && now - pumpStartedAt >= MAX_RUN_MS) {
+    setPump(false);
+    timeoutFault = true;
+  }
+  if (now - lastCycleAt < 3000) {
+    delay(20);
+    return;
+  }
+  lastCycleAt = now;
+
+  bool highFloatActive = digitalRead(HIGH_FLOAT_PIN) == LOW;
+  float distance = readDistanceCm();
+
+  if (highFloatActive) {
+    setPump(false);
+    publishState(100, "ust-sinir");
+    return;
+  }
+  if (distance < 0) {
+    setPump(false);
+    publishState(-1, "sensor-hatasi");
+    return;
+  }
+
+  float level = constrain(
+    (EMPTY_CM - distance) * 100.0f / (EMPTY_CM - FULL_CM),
+    0.0f,
+    100.0f
+  );
+
+  PxServ::Callback reset = client.getData("depo-pompa/hata-sifirla");
+  if (reset.status == 200 && reset.data == "1") {
+    timeoutFault = false;
+    client.setData("depo-pompa/hata-sifirla", "0");
+  }
+  if (timeoutFault) {
+    setPump(false);
+    publishState(level, "sure-hatasi");
+    return;
+  }
+
+  String mode = "otomatik";
+  PxServ::Callback modeValue = client.getData("depo-pompa/mod");
+  if (modeValue.status == 200) mode = modeValue.data;
+
+  bool request = false;
+  if (mode == "manuel") {
+    PxServ::Callback manual = client.getData("depo-pompa/manuel-komut");
+    request = manual.status == 200 && manual.data == "1";
+  } else {
+    request = pumpOn ? level < STOP_LEVEL : level < START_LEVEL;
+  }
+
+  setPump(request);
+  publishState(level, pumpOn ? "dolum" : "bekliyor");
+}
+```
+
+## Doğrulama matrisi
+
+| Koşul | Beklenen sonuç |
+| --- | --- |
+| Seviye %30'un altında, otomatik | Pompa başlar |
+| Seviye ≥%80 | Pompa durur |
+| Üst şalter aktif | Her modda pompa durur |
+| ECHO çıkarılmış | `sensor-hatasi`, pompa kapalı |
+| 60 saniye dolum | `sure-hatasi`, manuel sıfırlama gerekir |
+
+İlk testleri gerçek pompa yerine LED ile yapın. Şalterin kablosu koparsa sistemin hangi seviyeyi okuyacağını değerlendirip gerçek uygulamada normalde kapalı, kablo kopmasını algılayan bir güvenlik devresi tercih edin.
+

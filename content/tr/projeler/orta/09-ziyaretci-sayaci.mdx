@@ -1,0 +1,87 @@
+---
+title: Çift Sensörlü Ziyaretçi Sayacı
+description: İki IR sensörün tetiklenme sırasından giriş ve çıkış yönünü belirleyip doluluğu PxServ'e gönderin.
+---
+
+# 9. Çift Sensörlü Ziyaretçi Sayacı
+
+Kapıya aralıklı yerleştirilen iki IR sensörün tetik sırasını kullanarak giriş ve çıkış yönünü tahmin edin. Sayaç olaylarını PxServ'e gönderin.
+
+**Seviye:** Orta · **Süre:** 50 dakika
+
+## Sınırlar
+
+Bu sade algoritma tek kişinin sensörlerden sırayla geçtiğini varsayar. Yan yana veya zıt yönde aynı anda geçen kişilerde doğru sayım garanti etmez; ticari kişi sayımı değildir.
+
+## Gerekenler ve bağlantılar
+
+- ESP32, iki adet 3,3 V uyumlu dijital IR engel sensörü
+
+| Sensör | ESP32 |
+| --- | --- |
+| A OUT | GPIO 18 |
+| B OUT | GPIO 19 |
+| VCC / GND | Modül belgesine uygun besleme / ortak GND |
+
+Kod sensörlerin algılamada `LOW` verdiğini varsayar.
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int SENSOR_A = 18;
+const int SENSOR_B = 19;
+const unsigned long SEQUENCE_TIMEOUT = 2000;
+
+PxServ client(PXSERV_API_KEY);
+int occupancy = 0;
+int sequenceStart = 0;  // 0: yok, 1: A, 2: B
+unsigned long sequenceAt = 0;
+
+void publishCount(String direction) {
+  client.setData("ziyaretci/doluluk", String(occupancy));
+  client.setData("ziyaretci/son-yon", direction);
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(SENSOR_A, INPUT_PULLUP);
+  pinMode(SENSOR_B, INPUT_PULLUP);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+  publishCount("baslangic");
+}
+
+void loop() {
+  bool a = digitalRead(SENSOR_A) == LOW;
+  bool b = digitalRead(SENSOR_B) == LOW;
+  unsigned long now = millis();
+
+  if (sequenceStart == 0) {
+    if (a && !b) { sequenceStart = 1; sequenceAt = now; }
+    if (b && !a) { sequenceStart = 2; sequenceAt = now; }
+  } else if (now - sequenceAt > SEQUENCE_TIMEOUT) {
+    sequenceStart = 0;
+  } else if (sequenceStart == 1 && b) {
+    occupancy++;
+    publishCount("giris");
+    sequenceStart = 0;
+    delay(500);
+  } else if (sequenceStart == 2 && a) {
+    occupancy = max(0, occupancy - 1);
+    publishCount("cikis");
+    sequenceStart = 0;
+    delay(500);
+  }
+
+  delay(10);
+}
+```
+
+## Test
+
+Elinizi önce A sonra B önünden geçirerek `giris`, ters yönde geçirerek `cikis` üretildiğini doğrulayın. Sensörleri geçiş doğrultusunda yaklaşık 20–30 cm arayla yerleştirin ve algılama mesafelerini birbirini görmeyecek şekilde ayarlayın.
+

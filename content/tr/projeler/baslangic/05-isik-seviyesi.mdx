@@ -1,0 +1,70 @@
+---
+title: Ortam Işık Seviyesi
+description: LDR gerilim bölücüsünü ESP32 ile okuyup yaklaşık ışık yüzdesini PxServ'e gönderin.
+---
+
+# 5. Ortam Işık Seviyesi
+
+Bir LDR ile ortamın göreli aydınlık seviyesini ölçün. Bu devre lüks cinsinden kalibre bir ölçüm yapmaz; karanlık ve aydınlık arasındaki değişimi anlaşılır bir yüzdeye çevirir.
+
+**Seviye:** Başlangıç · **Süre:** 25 dakika
+
+## Gerekenler
+
+- ESP32 DevKit V1
+- LDR
+- 10 kΩ direnç
+- Breadboard ve jumper kablolar
+
+## Bağlantılar
+
+Gerilim bölücüyü şu sırayla kurun:
+
+`3V3 → LDR → ölçüm noktası (GPIO 34) → 10 kΩ → GND`
+
+Bu düzenle ışık arttığında ADC değeri de genellikle artar.
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int LDR_PIN = 34;
+
+PxServ client(PXSERV_API_KEY);
+
+void setup() {
+  Serial.begin(115200);
+  analogReadResolution(12);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  long total = 0;
+  for (int i = 0; i < 10; i++) {
+    total += analogRead(LDR_PIN);
+    delay(10);
+  }
+
+  int rawValue = total / 10;
+  int lightPercent = constrain(map(rawValue, 0, 4095, 0, 100), 0, 100);
+
+  client.setData("isik/ham", String(rawValue));
+  client.setData("isik/yuzde", String(lightPercent));
+
+  Serial.print("Isik: %");
+  Serial.println(lightPercent);
+  delay(5000);
+}
+```
+
+## Test
+
+Önce LDR'yi elinizle kapatın, sonra telefon fenerini sensöre yaklaştırın. Paneldeki yüzde belirgin biçimde değişmelidir. On örneğin ortalaması küçük ADC dalgalanmalarını azaltır.
+
+## Geliştirme fikri
+
+Kendi ortamınızda gördüğünüz karanlık ve aydınlık ham değerlerini not edip `map(rawValue, karanlik, aydinlik, 0, 100)` biçiminde kullanarak daha anlamlı bir ölçek elde edebilirsiniz.

@@ -1,0 +1,71 @@
+---
+title: Soil Moisture Monitoring
+description: Calibrate a capacitive soil sensor and publish an approximate moisture percentage.
+---
+
+# 9. Soil Moisture Monitoring
+
+Map a capacitive sensor reading between dry and wet reference values. Calibration is essential because sensor modules, soil, and placement vary.
+
+**Level:** Beginner · **Time:** 30 minutes
+
+## Parts and wiring
+
+- ESP32 DevKit V1 and a common 3.3 V-compatible capacitive soil-moisture sensor
+
+| Sensor | ESP32   |
+| ------ | ------- |
+| VCC    | 3V3     |
+| AOUT   | GPIO 34 |
+| GND    | GND     |
+
+Verify that the analog output cannot exceed 3.3 V. Modules vary slightly by manufacturer, so keep the calibration values for the exact probe you use.
+
+## Calibration
+
+Record a reading with the probe in air as `DRY_VALUE`. Then insert only the probe section into fully wet soil or water and record `WET_VALUE`; never wet the electronics.
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int SOIL_PIN = 34;
+const int DRY_VALUE = 3000;  // Replace after calibration
+const int WET_VALUE = 1400;  // Replace after calibration
+
+PxServ client(PXSERV_API_KEY);
+
+void setup() {
+  Serial.begin(115200);
+  analogReadResolution(12);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  long total = 0;
+  for (int i = 0; i < 10; i++) {
+    total += analogRead(SOIL_PIN);
+    delay(20);
+  }
+
+  int rawValue = total / 10;
+  int moisture = map(rawValue, DRY_VALUE, WET_VALUE, 0, 100);
+  moisture = constrain(moisture, 0, 100);
+
+  client.setData("soil/raw", String(rawValue));
+  client.setData("soil/moisture-percent", String(moisture));
+  Serial.print("Soil moisture: ");
+  Serial.println(moisture);
+  delay(15000);
+}
+```
+
+## Test
+
+Compare dry and moist soil while keeping insertion depth and compaction consistent. The value should approach 0% when dry and 100% when wet.
+
+Use the exact calibration values from the probe you have, because the same circuit can behave differently between soil types and sensor batches.

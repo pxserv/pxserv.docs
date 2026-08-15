@@ -1,0 +1,81 @@
+---
+title: Uzaktan Buzzer Kontrolü
+description: PxServ komutuyla aktif buzzer'ı açıp kapatarak güvenli uzaktan çıkış davranışı kurun.
+---
+
+# 10. Uzaktan Buzzer Kontrolü
+
+PxServ'deki komut değerini okuyup aktif buzzer modülünü yönetin. Ağ veya anahtar okuma hatasında buzzer'ın kapalı kalması, güvenli varsayılan davranışın basit bir örneğidir.
+
+**Seviye:** Başlangıç · **Süre:** 25 dakika
+
+## Gerekenler ve bağlantılar
+
+- ESP32 DevKit V1
+- 3,3 V uyumlu düşük akımlı aktif buzzer modülü
+
+| Buzzer modülü | ESP32 |
+| --- | --- |
+| VCC | 3V3 |
+| I/O veya SIG | GPIO 23 |
+| GND | GND |
+
+Çıplak veya yüksek akım çeken buzzer'ı doğrudan GPIO'ya bağlamayın; uygun transistör sürücü kullanın.
+
+## PxServ anahtarları
+
+| Anahtar | Değer |
+| --- | --- |
+| `buzzer/komut` | `0` / `1` |
+| `buzzer/durum` | Cihazın uyguladığı durum |
+
+Komut anahtarını kodu çalıştırmadan önce `0` değeriyle oluşturun.
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int BUZZER_PIN = 23;
+
+PxServ client(PXSERV_API_KEY);
+
+void setBuzzer(bool enabled) {
+  digitalWrite(BUZZER_PIN, enabled ? HIGH : LOW);
+  client.setData("buzzer/durum", enabled ? "1" : "0");
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+  setBuzzer(false);
+}
+
+void loop() {
+  PxServ::Callback command = client.getData("buzzer/komut");
+
+  if (command.status == 200) {
+    bool enabled = command.data == "1";
+    setBuzzer(enabled);
+    Serial.println(enabled ? "Buzzer acik" : "Buzzer kapali");
+  } else {
+    digitalWrite(BUZZER_PIN, LOW);
+    Serial.println("Komut okunamadi; buzzer guvenli olarak kapatildi.");
+  }
+
+  delay(2000);
+}
+```
+
+## Test
+
+PxServ komutunu önce `1`, sonra `0` yaparak fiziksel çıkışı ve `durum` anahtarını doğrulayın. Bazı buzzer modülleri aktif-LOW çalışır; modülünüz ters davranıyorsa `HIGH` ve `LOW` seviyelerini yer değiştirin.
+
+## Başlangıç seviyesi tamamlandı
+
+Artık veri gönderme, komut okuma, dijital/analog giriş ve güvenli çıkış temellerini kullandınız. [Orta seviye: Otomatik Gece Lambası](/tr/projeler/orta/01-otomatik-gece-lambasi/) ile sensör ve uzaktan komutu aynı otomasyonda birleştirin.

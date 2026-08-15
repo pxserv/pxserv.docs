@@ -1,0 +1,94 @@
+---
+title: Smart Plant Watering
+description: Run a low-voltage pump from calibrated soil moisture with remote mode and time limits.
+---
+
+# 2. Smart Plant Watering
+
+Run a pump briefly when calibrated soil moisture falls below a threshold. A remote mode, maximum run time, and cooldown make the prototype safer and easier to observe.
+
+**Level:** Intermediate · **Time:** 50 minutes
+
+## Safety and wiring
+
+Use only a low-voltage DC mini pump. Never power it from an ESP32 pin. Use a suitable relay or MOSFET driver, external supply, shared GND, and inductive-load protection. Never switch mains voltage.
+
+| Part | ESP32 |
+| --- | --- |
+| Soil sensor AOUT | GPIO 34 |
+| Soil sensor VCC / GND | 3V3 / GND |
+| Driver IN | GPIO 23 |
+| Driver GND | Common GND |
+
+The example assumes an active-low relay.
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int SOIL_PIN = 34;
+const int PUMP_PIN = 23;
+const int DRY_VALUE = 3000;  // Calibrate
+const int WET_VALUE = 1400;  // Calibrate
+const int START_THRESHOLD = 35;
+const unsigned long MAX_PUMP_MS = 5000;
+const unsigned long COOLDOWN_MS = 30000;
+
+PxServ client(PXSERV_API_KEY);
+bool pumpRunning = false;
+unsigned long pumpStartedAt = 0;
+unsigned long lastPumpStoppedAt = 0;
+unsigned long lastCycleAt = 0;
+
+void setPump(bool enabled) {
+  pumpRunning = enabled;
+  digitalWrite(PUMP_PIN, enabled ? LOW : HIGH);
+  client.setData("watering/pump-status", enabled ? "1" : "0");
+  if (enabled) pumpStartedAt = millis();
+  else lastPumpStoppedAt = millis();
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PUMP_PIN, OUTPUT);
+  digitalWrite(PUMP_PIN, HIGH);
+  analogReadResolution(12);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  unsigned long now = millis();
+  if (pumpRunning && now - pumpStartedAt >= MAX_PUMP_MS) setPump(false);
+  if (now - lastCycleAt < 5000) { delay(20); return; }
+  lastCycleAt = now;
+
+  int raw = analogRead(SOIL_PIN);
+  int moisture = constrain(map(raw, DRY_VALUE, WET_VALUE, 0, 100), 0, 100);
+  client.setData("watering/moisture-percent", String(moisture));
+
+  String mode = "automatic";
+  PxServ::Callback modeResult = client.getData("watering/mode");
+  if (modeResult.status == 200) mode = modeResult.data;
+
+  bool requestPump = false;
+  if (mode == "manual") {
+    PxServ::Callback manual = client.getData("watering/manual-pump");
+    requestPump = manual.status == 200 && manual.data == "1";
+  } else {
+    requestPump = moisture < START_THRESHOLD;
+  }
+
+  bool cooldownFinished = now - lastPumpStoppedAt >= COOLDOWN_MS;
+  if (requestPump && !pumpRunning && cooldownFinished) setPump(true);
+  if (!requestPump && pumpRunning) setPump(false);
+}
+```
+
+## Commissioning
+
+Test with only the relay indicator first. Confirm calibration, manual control, the five-second shutoff, and cooldown before connecting the pump. A real system also needs reservoir level, leak/flow detection, and a hardware cutoff.
+

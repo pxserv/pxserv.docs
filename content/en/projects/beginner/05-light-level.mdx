@@ -1,0 +1,59 @@
+---
+title: Ambient Light Level
+description: Read an LDR voltage divider and publish an approximate light percentage to PxServ.
+---
+
+# 5. Ambient Light Level
+
+Measure relative ambient brightness with an LDR. This is not a calibrated lux meter; it provides a clear dark-to-bright comparison.
+
+**Level:** Beginner · **Time:** 25 minutes
+
+## Parts and wiring
+
+- ESP32 DevKit V1, LDR, and 10 kΩ resistor
+
+Build this divider:
+
+`3V3 → LDR → measurement point (GPIO 34) → 10 kΩ → GND`
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int LDR_PIN = 34;
+
+PxServ client(PXSERV_API_KEY);
+
+void setup() {
+  Serial.begin(115200);
+  analogReadResolution(12);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  long total = 0;
+  for (int i = 0; i < 10; i++) {
+    total += analogRead(LDR_PIN);
+    delay(10);
+  }
+
+  int rawValue = total / 10;
+  int lightPercent = constrain(map(rawValue, 0, 4095, 0, 100), 0, 100);
+
+  client.setData("light/raw", String(rawValue));
+  client.setData("light/percent", String(lightPercent));
+  Serial.print("Light: ");
+  Serial.println(lightPercent);
+  delay(5000);
+}
+```
+
+## Test and calibration
+
+Cover the LDR, then illuminate it with a phone flashlight. The reported percentage should change clearly. For a more useful local scale, record the raw dark and bright values and use them as the `map()` endpoints.
+

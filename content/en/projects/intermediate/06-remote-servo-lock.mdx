@@ -1,0 +1,77 @@
+---
+title: Remote Servo Lock
+description: Move a servo between defined positions from PxServ and report the applied lock state.
+---
+
+# 6. Remote Servo Lock
+
+Read `locked` or `open` from PxServ and move an SG90 servo between two defined angles. Requested and applied states remain separate.
+
+**Level:** Intermediate · **Time:** 40 minutes
+
+## Power and wiring
+
+- ESP32, SG90 micro servo, **ESP32Servo** library
+- Stable external 5 V servo supply
+
+| Servo | Connection |
+| --- | --- |
+| Signal | GPIO 18 |
+| VCC | External 5 V |
+| GND | External-supply and ESP32 GND shared |
+
+Never power the servo from ESP32 3V3. This is a desktop mechanism prototype, not a security-rated lock.
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+#include <ESP32Servo.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int SERVO_PIN = 18;
+const int LOCKED_ANGLE = 15;
+const int OPEN_ANGLE = 95;
+
+PxServ client(PXSERV_API_KEY);
+Servo lockServo;
+String appliedState = "";
+
+void applyState(String state) {
+  if (state == "open") {
+    lockServo.write(OPEN_ANGLE);
+    appliedState = "open";
+  } else {
+    lockServo.write(LOCKED_ANGLE);
+    appliedState = "locked";
+  }
+  delay(500);
+  client.setData("servo-lock/status", appliedState);
+}
+
+void setup() {
+  Serial.begin(115200);
+  lockServo.setPeriodHertz(50);
+  lockServo.attach(SERVO_PIN, 500, 2400);
+  lockServo.write(LOCKED_ANGLE);
+  appliedState = "locked";
+  delay(500);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+  client.setData("servo-lock/status", "locked");
+}
+
+void loop() {
+  PxServ::Callback command = client.getData("servo-lock/command");
+  if (command.status == 200 && command.data != appliedState) {
+    applyState(command.data == "open" ? "open" : "locked");
+  }
+  delay(2000);
+}
+```
+
+## Test and production note
+
+Test angles before attaching the horn to the mechanism. Reduce them if the servo stalls. The reported status confirms the target command was written, not the physical position; add a limit switch for verified locking.
+

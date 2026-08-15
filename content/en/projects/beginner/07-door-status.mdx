@@ -1,0 +1,73 @@
+---
+title: Door Status Sensor
+description: Publish open and closed transitions from a magnetic reed switch to PxServ.
+---
+
+# 7. Door Status Sensor
+
+Detect whether a door is open or closed with a magnetic reed switch. Data is published only when the state changes, reducing unnecessary network traffic.
+
+**Level:** Beginner · **Time:** 25 minutes
+
+## Parts and wiring
+
+- ESP32 DevKit V1 and normally open reed switch with magnet
+
+| Reed-switch terminal | ESP32 |
+| --- | --- |
+| First side | GPIO 18 |
+| Other side | GND |
+
+## PxServ keys
+
+| Key | Values |
+| --- | --- |
+| `door/status` | `open` / `closed` |
+| `door/change-count` | Total state transitions |
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int REED_PIN = 18;
+
+PxServ client(PXSERV_API_KEY);
+int previousState = -1;
+unsigned long changeCount = 0;
+
+void publishDoorState(int state) {
+  bool doorClosed = state == LOW;
+  client.setData("door/status", doorClosed ? "closed" : "open");
+  client.setData("door/change-count", String(changeCount));
+  Serial.println(doorClosed ? "Door closed" : "Door open");
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(REED_PIN, INPUT_PULLUP);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  int currentState = digitalRead(REED_PIN);
+  if (currentState != previousState) {
+    delay(30);
+    currentState = digitalRead(REED_PIN);
+    if (currentState != previousState) {
+      if (previousState != -1) changeCount++;
+      publishDoorState(currentState);
+      previousState = currentState;
+    }
+  }
+  delay(20);
+}
+```
+
+## Test and mounting
+
+Move the magnet toward and away from the switch. If status is reversed, invert the `doorClosed` condition. Mount the sensor on the fixed frame and the magnet on the moving door, within the manufacturer's sensing distance when closed.
+

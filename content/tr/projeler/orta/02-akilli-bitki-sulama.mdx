@@ -1,0 +1,117 @@
+---
+title: Akıllı Bitki Sulama
+description: Kalibre toprak nemine göre düşük gerilimli pompayı süre sınırlı çalıştırın ve PxServ'den modu yönetin.
+---
+
+# 2. Akıllı Bitki Sulama
+
+Toprak nemi eşik altına indiğinde pompayı kısa süre çalıştırın. Uzaktan otomatik/manuel mod seçimi ve pompa süre sınırı, basit bir otomasyonu daha güvenli hale getirir.
+
+**Seviye:** Orta · **Süre:** 50 dakika
+
+## Güvenlik
+
+Bu proje yalnızca düşük gerilimli DC mini pompa içindir. Pompayı ESP32 pininden beslemeyin. Uygun röle/MOSFET sürücü, ayrı güç kaynağı, ortak GND ve endüktif yük koruması kullanın. Şebeke gerilimine bağlanmayın.
+
+## Gerekenler ve bağlantılar
+
+- ESP32, kapasitif toprak nem sensörü
+- 3,3 V lojikle uyumlu röle veya MOSFET modülü
+- Düşük gerilimli DC pompa ve uygun harici güç kaynağı
+
+| Parça | ESP32 |
+| --- | --- |
+| Nem sensörü AOUT | GPIO 34 |
+| Nem sensörü VCC / GND | 3V3 / GND |
+| Sürücü IN | GPIO 23 |
+| Sürücü GND | ESP32 ile ortak GND |
+
+Örnekte röle `LOW` ile aktif kabul edilmiştir; modülünüzü doğrulayın.
+
+## PxServ komutları
+
+- `sulama/mod`: `otomatik` veya `manuel`
+- `sulama/manuel-pompa`: `0` veya `1`
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int SOIL_PIN = 34;
+const int PUMP_PIN = 23;
+
+const int DRY_VALUE = 3000;  // Kalibre edin
+const int WET_VALUE = 1400;  // Kalibre edin
+const int START_THRESHOLD = 35;
+const unsigned long MAX_PUMP_MS = 5000;
+const unsigned long COOLDOWN_MS = 30000;
+
+PxServ client(PXSERV_API_KEY);
+bool pumpRunning = false;
+unsigned long pumpStartedAt = 0;
+unsigned long lastPumpStoppedAt = 0;
+unsigned long lastCycleAt = 0;
+
+void setPump(bool enabled) {
+  pumpRunning = enabled;
+  digitalWrite(PUMP_PIN, enabled ? LOW : HIGH);
+  client.setData("sulama/pompa-durum", enabled ? "1" : "0");
+  if (enabled) pumpStartedAt = millis();
+  else lastPumpStoppedAt = millis();
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PUMP_PIN, OUTPUT);
+  digitalWrite(PUMP_PIN, HIGH);
+  analogReadResolution(12);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  unsigned long now = millis();
+
+  if (pumpRunning && now - pumpStartedAt >= MAX_PUMP_MS) {
+    setPump(false);
+  }
+
+  if (now - lastCycleAt < 5000) {
+    delay(20);
+    return;
+  }
+  lastCycleAt = now;
+
+  int raw = analogRead(SOIL_PIN);
+  int moisture = constrain(map(raw, DRY_VALUE, WET_VALUE, 0, 100), 0, 100);
+  client.setData("sulama/nem-yuzde", String(moisture));
+
+  String mode = "otomatik";
+  PxServ::Callback modeResult = client.getData("sulama/mod");
+  if (modeResult.status == 200) mode = modeResult.data;
+
+  bool requestPump = false;
+  if (mode == "manuel") {
+    PxServ::Callback manual = client.getData("sulama/manuel-pompa");
+    requestPump = manual.status == 200 && manual.data == "1";
+  } else {
+    requestPump = moisture < START_THRESHOLD;
+  }
+
+  bool cooldownFinished = now - lastPumpStoppedAt >= COOLDOWN_MS;
+  if (requestPump && !pumpRunning && cooldownFinished) setPump(true);
+  if (!requestPump && pumpRunning) setPump(false);
+}
+```
+
+## Test sırası
+
+Önce pompayı bağlamadan yalnızca röle LED'iyle test edin. Nem değerini kuru/ıslak koşullarda doğrulayın, manuel komutu deneyin ve rölenin en geç beş saniye sonra kapandığını gözlemleyin. Son olarak suyu elektroniklerden uzakta tutarak pompayı bağlayın.
+
+## Sınırlar
+
+Bu öğretici; boş su haznesi, hortum kaçağı veya sıkışmış röle algılamaz. Gerçek bir sistemde akış/seviye sensörü ve donanımsal kesme ekleyin.
+

@@ -1,0 +1,74 @@
+---
+title: Yağmur Uyarısı
+description: Analog yağmur sensörünü filtreleyip kuru, nemli ve yağmurlu durumlarını PxServ'e gönderin.
+---
+
+# 8. Yağmur Uyarısı
+
+Yağmur plakasının analog çıkışını ortalayın ve üç duruma sınıflandırın. Durum yalnızca değiştiğinde ayrıca bir olay sayacı artırın.
+
+**Seviye:** Orta · **Süre:** 40 dakika
+
+## Gerekenler ve bağlantılar
+
+- ESP32 DevKit V1
+- 3,3 V uyumlu analog yağmur sensörü modülü
+
+| Sensör | ESP32 |
+| --- | --- |
+| VCC / GND | 3V3 / GND |
+| AO | GPIO 34 |
+
+Birçok açık bakır plakalı sensör uzun süre ıslak bırakıldığında korozyona uğrar. Bu prototip kısa süreli test içindir; kalıcı dış ortam kurulumu için uygun muhafazalı sensör seçin.
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int RAIN_PIN = 34;
+
+const int DRY_LIMIT = 3200;   // Kendi sensorunuzle kalibre edin
+const int WET_LIMIT = 2200;
+
+PxServ client(PXSERV_API_KEY);
+String previousState = "";
+unsigned long eventCount = 0;
+
+void setup() {
+  Serial.begin(115200);
+  analogReadResolution(12);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  long total = 0;
+  for (int i = 0; i < 20; i++) {
+    total += analogRead(RAIN_PIN);
+    delay(10);
+  }
+  int raw = total / 20;
+
+  String state = raw > DRY_LIMIT ? "kuru" :
+                 raw > WET_LIMIT ? "nemli" : "yagmur";
+
+  client.setData("yagmur/ham", String(raw));
+  client.setData("yagmur/durum", state);
+
+  if (state != previousState) {
+    if (state == "yagmur") eventCount++;
+    client.setData("yagmur/olay-sayisi", String(eventCount));
+    previousState = state;
+  }
+
+  delay(10000);
+}
+```
+
+## Kalibrasyon ve test
+
+Plaka tamamen kuruyken, birkaç damlayla nemliyken ve ıslakken ham değerleri not edin; iki eşiği bu aralıkların ortasına yerleştirin. Modülünüzde ıslaklık arttıkça değer yükseliyorsa karşılaştırmaları tersine çevirin.
+

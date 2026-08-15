@@ -1,0 +1,72 @@
+---
+title: Potansiyometre İzleme
+description: ESP32 ADC ile potansiyometre konumunu okuyup yüzde olarak PxServ'e gönderin.
+---
+
+# 4. Potansiyometre İzleme
+
+Potansiyometrenin analog konumunu okuyun, yüzdeye dönüştürün ve PxServ panelinde izleyin.
+
+**Seviye:** Başlangıç · **Süre:** 20 dakika
+
+## Kazanımlar
+
+- ESP32 `analogRead()` ile 12 bit ADC değeri okumak
+- `map()` ve `constrain()` ile yüzde hesaplamak
+- Ham ve işlenmiş veriyi ayrı PxServ anahtarlarında tutmak
+
+## Gerekenler ve bağlantılar
+
+- ESP32 DevKit V1
+- 10 kΩ lineer potansiyometre
+
+| Potansiyometre ucu | Bağlantı |
+| ------------------ | -------- |
+| Dış uç             | 3V3      |
+| Orta uç            | GPIO 34  |
+| Diğer dış uç       | GND      |
+
+Potansiyometreyi 5 V'a bağlamayın; ESP32 ADC girişine 3,3 V üzerinde gerilim uygulamayın.
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int POT_PIN = 34;
+
+PxServ client(PXSERV_API_KEY);
+
+void setup() {
+  Serial.begin(115200);
+  analogReadResolution(12);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  int rawValue = analogRead(POT_PIN);
+  int percent = constrain(map(rawValue, 0, 4095, 0, 100), 0, 100);
+
+  client.setData("potansiyometre/ham", String(rawValue));
+  client.setData("potansiyometre/yuzde", String(percent));
+
+  Serial.print("Ham: ");
+  Serial.print(rawValue);
+  Serial.print(" | Yuzde: %");
+  Serial.println(percent);
+  delay(5000);
+}
+```
+
+## Test ve yorumlama
+
+Potansiyometreyi iki uç arasında yavaşça çevirin. Ham değer yaklaşık `0–4095`, yüzde ise `0–100` aralığında değişmelidir. Gerçek ESP32 ADC ölçümleri ideal doğrusal olmayabilir; bu proje kullanıcı arayüzü konumu gibi yaklaşık ölçümler içindir.
+
+## Sorun giderme
+
+- Değer ters yönde değişiyorsa iki dış ucu yer değiştirin.
+- Değer sabitse orta ucun GPIO 34'e gittiğini doğrulayın.
+- Değer dalgalanıyorsa kabloları kısaltın ve birkaç okumanın ortalamasını almayı deneyin.

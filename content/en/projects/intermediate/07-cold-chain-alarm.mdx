@@ -1,0 +1,78 @@
+---
+title: Cold Chain Alarm
+description: Monitor DS18B20 temperature, read a remote threshold, and produce local and cloud alarms.
+---
+
+# 7. Cold Chain Alarm
+
+Monitor a DS18B20 and activate a buzzer when temperature exceeds a PxServ-configured maximum.
+
+**Level:** Intermediate · **Time:** 45 minutes
+
+This is educational. Food, pharmaceutical, or regulated cold chains require calibrated equipment, uninterrupted records, independent alarms, and validated procedures.
+
+## Requirements and wiring
+
+- ESP32, DS18B20, 4.7 kΩ resistor, active buzzer
+- **OneWire** and **DallasTemperature** libraries
+
+| Part | ESP32 |
+| --- | --- |
+| DS18B20 DQ | GPIO 4; 4.7 kΩ from DQ to 3V3 |
+| DS18B20 VDD / GND | 3V3 / GND |
+| Buzzer SIG | GPIO 23 |
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int ONE_WIRE_PIN = 4;
+const int BUZZER_PIN = 23;
+
+PxServ client(PXSERV_API_KEY);
+OneWire oneWire(ONE_WIRE_PIN);
+DallasTemperature sensors(&oneWire);
+float maxTemperature = 8.0;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
+  sensors.begin();
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  PxServ::Callback threshold = client.getData("cold-chain/maximum");
+  if (threshold.status == 200) maxTemperature = threshold.data.toFloat();
+
+  sensors.requestTemperatures();
+  float temperature = sensors.getTempCByIndex(0);
+  if (temperature == DEVICE_DISCONNECTED_C) {
+    digitalWrite(BUZZER_PIN, HIGH);
+    client.setData("cold-chain/status", "sensor-error");
+    delay(5000);
+    return;
+  }
+
+  bool alarm = temperature > maxTemperature;
+  digitalWrite(BUZZER_PIN, alarm ? HIGH : LOW);
+  client.setData("cold-chain/temperature", String(temperature, 2));
+  client.setData("cold-chain/threshold", String(maxTemperature, 1));
+  client.setData("cold-chain/status", alarm ? "alarm" : "normal");
+  delay(10000);
+}
+```
+
+## Test
+
+Set the threshold below room temperature to trigger an alarm, then above it to clear. Disconnect the sensor and confirm `sensor-error` forces the local alarm on.
+
+Reference: [DS18B20 manufacturer page](https://www.analog.com/en/products/ds18b20.html)
+

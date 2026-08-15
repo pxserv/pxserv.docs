@@ -1,0 +1,86 @@
+---
+title: Bulut Bağlantılı Park Sensörü
+description: HC-SR04 ile mesafeyi ölçün, uyarı bölgesini belirleyin ve PxServ'e gönderin.
+---
+
+# 3. Bulut Bağlantılı Park Sensörü
+
+HC-SR04 ile önünüzdeki nesnenin mesafesini ölçün. Yakınlık bölgesini aktif buzzer ile bildirin ve ölçümü PxServ'de izleyin.
+
+**Seviye:** Orta · **Süre:** 40 dakika
+
+## Elektrik uyarısı ve bağlantılar
+
+HC-SR04 ECHO çıkışı 5 V olabilir. ESP32 GPIO'ya doğrudan bağlamayın; örneğin ECHO ile GPIO arasına 1 kΩ, GPIO ile GND arasına 2 kΩ direnç kullanarak yaklaşık 3,3 V gerilim bölücü kurun.
+
+| Parça | ESP32 |
+| --- | --- |
+| HC-SR04 VCC / GND | 5V / GND |
+| TRIG | GPIO 5 |
+| ECHO | Gerilim bölücü üzerinden GPIO 18 |
+| Aktif buzzer SIG | GPIO 23 |
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int TRIG_PIN = 5;
+const int ECHO_PIN = 18;
+const int BUZZER_PIN = 23;
+
+PxServ client(PXSERV_API_KEY);
+
+float readDistanceCm() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  unsigned long duration = pulseIn(ECHO_PIN, HIGH, 30000);
+  if (duration == 0) return -1;
+  return duration * 0.0343f / 2.0f;
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  float distance = readDistanceCm();
+  String zone;
+
+  if (distance < 0) zone = "olcum-yok";
+  else if (distance < 20) zone = "dur";
+  else if (distance < 50) zone = "yavas";
+  else zone = "guvenli";
+
+  digitalWrite(BUZZER_PIN, zone == "dur" ? HIGH : LOW);
+  client.setData("park/bolge", zone);
+  if (distance >= 0) {
+    client.setData("park/mesafe-cm", String(distance, 1));
+  }
+
+  Serial.print("Mesafe: ");
+  Serial.print(distance, 1);
+  Serial.print(" cm | Bolge: ");
+  Serial.println(zone);
+  delay(1000);
+}
+```
+
+## Test
+
+Sensörün önüne düz bir karton yerleştirip mesafeyi cetvelle karşılaştırın. Kartonu 50 cm ve 20 cm eşiklerinden geçirerek PxServ bölgesini ve buzzer'ı doğrulayın. Yumuşak, açılı veya çok küçük yüzeyler ultrasonu farklı yansıtabilir.
+
+Teknik referans: [Arduino HC-SR04 kütüphane kaydı](https://docs.arduino.cc/libraries/hc-sr04/)
+

@@ -1,0 +1,82 @@
+---
+title: Two-Sensor Visitor Counter
+description: Infer entry and exit direction from the trigger order of two IR sensors.
+---
+
+# 9. Two-Sensor Visitor Counter
+
+Use two spaced digital IR sensors to infer direction and maintain an occupancy estimate.
+
+**Level:** Intermediate · **Time:** 50 minutes
+
+This simple algorithm assumes one person crosses both sensors in sequence. Simultaneous or side-by-side traffic can produce incorrect counts; it is not a commercial people counter.
+
+## Wiring
+
+| Sensor | ESP32 |
+| --- | --- |
+| Sensor A OUT | GPIO 18 |
+| Sensor B OUT | GPIO 19 |
+| Power / GND | Per module documentation / common GND |
+
+The sketch assumes detection produces `LOW`.
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int SENSOR_A = 18;
+const int SENSOR_B = 19;
+const unsigned long SEQUENCE_TIMEOUT = 2000;
+
+PxServ client(PXSERV_API_KEY);
+int occupancy = 0;
+int sequenceStart = 0;
+unsigned long sequenceAt = 0;
+
+void publishCount(String direction) {
+  client.setData("visitor/occupancy", String(occupancy));
+  client.setData("visitor/last-direction", direction);
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(SENSOR_A, INPUT_PULLUP);
+  pinMode(SENSOR_B, INPUT_PULLUP);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+  publishCount("startup");
+}
+
+void loop() {
+  bool a = digitalRead(SENSOR_A) == LOW;
+  bool b = digitalRead(SENSOR_B) == LOW;
+  unsigned long now = millis();
+
+  if (sequenceStart == 0) {
+    if (a && !b) { sequenceStart = 1; sequenceAt = now; }
+    if (b && !a) { sequenceStart = 2; sequenceAt = now; }
+  } else if (now - sequenceAt > SEQUENCE_TIMEOUT) {
+    sequenceStart = 0;
+  } else if (sequenceStart == 1 && b) {
+    occupancy++;
+    publishCount("entry");
+    sequenceStart = 0;
+    delay(500);
+  } else if (sequenceStart == 2 && a) {
+    occupancy = max(0, occupancy - 1);
+    publishCount("exit");
+    sequenceStart = 0;
+    delay(500);
+  }
+  delay(10);
+}
+```
+
+## Test
+
+Move your hand past A then B for entry and reverse the order for exit. Space sensors about 20–30 cm along the direction of travel and reduce their ranges so they do not overlap.
+

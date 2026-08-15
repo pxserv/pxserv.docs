@@ -1,0 +1,82 @@
+---
+title: Uzaktan Servo Kilit
+description: PxServ komutuyla servo açısını değiştirip uygulanan kilit durumunu geri bildirin.
+---
+
+# 6. Uzaktan Servo Kilit
+
+PxServ'den `kilitli` veya `acik` komutu alıp SG90 servoyu iki tanımlı açı arasında hareket ettirin. Komut ile cihazın uyguladığı durumun ayrı anahtarlarda tutulmasını öğrenin.
+
+**Seviye:** Orta · **Süre:** 40 dakika
+
+## Donanım ve güç
+
+- ESP32 DevKit V1, SG90 mikro servo
+- Arduino Library Manager'dan **ESP32Servo**
+- Servo için kararlı harici 5 V güç kaynağı
+
+| Servo | Bağlantı |
+| --- | --- |
+| Sinyal | GPIO 18 |
+| VCC | Harici 5 V |
+| GND | Harici kaynak GND ve ESP32 GND ortak |
+
+Servoyu ESP32'nin 3V3 pininden beslemeyin. Bu örnek fiziksel güvenlik kilidi değil, masaüstü mekanizma prototipidir.
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+#include <ESP32Servo.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int SERVO_PIN = 18;
+const int LOCKED_ANGLE = 15;
+const int OPEN_ANGLE = 95;
+
+PxServ client(PXSERV_API_KEY);
+Servo lockServo;
+String appliedState = "";
+
+void applyState(String state) {
+  if (state == "acik") {
+    lockServo.write(OPEN_ANGLE);
+    appliedState = "acik";
+  } else {
+    lockServo.write(LOCKED_ANGLE);
+    appliedState = "kilitli";
+  }
+  delay(500);
+  client.setData("servo-kilit/durum", appliedState);
+}
+
+void setup() {
+  Serial.begin(115200);
+  lockServo.setPeriodHertz(50);
+  lockServo.attach(SERVO_PIN, 500, 2400);
+  lockServo.write(LOCKED_ANGLE);
+  appliedState = "kilitli";
+  delay(500);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+  client.setData("servo-kilit/durum", "kilitli");
+}
+
+void loop() {
+  PxServ::Callback command = client.getData("servo-kilit/komut");
+  if (command.status == 200 && command.data != appliedState) {
+    applyState(command.data == "acik" ? "acik" : "kilitli");
+  }
+  delay(2000);
+}
+```
+
+## Test
+
+Servo kolunu mekanizmaya bağlamadan önce açıları test edin. Ardından komut anahtarını `acik` ve `kilitli` arasında değiştirin. Mekanizma sınırlarına zorlanıyorsa `LOCKED_ANGLE` ve `OPEN_ANGLE` değerlerini küçültün; servo sürekli zorlanmamalıdır.
+
+## Profesyonel not
+
+Kod yalnızca hedef açının yazıldığını onaylar; gerçek konumu ölçmez. Güvenilir kilit doğrulaması için limit switch veya konum sensörü eklenmelidir.
+

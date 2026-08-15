@@ -1,0 +1,69 @@
+---
+title: PIR Motion Alarm
+description: Detect PIR motion events and publish current status and an event count to PxServ.
+---
+
+# 8. PIR Motion Alarm
+
+Read the digital output of an HC-SR501 PIR sensor. Publish both the current motion state and a counter when a new motion event begins.
+
+**Level:** Beginner · **Time:** 30 minutes
+
+## Parts and wiring
+
+- ESP32 DevKit V1 and HC-SR501 PIR sensor
+
+| PIR | ESP32 |
+| --- | --- |
+| VCC | 5V / VIN |
+| OUT | GPIO 27 |
+| GND | GND |
+
+The common HC-SR501 output is typically suitable for ESP32 logic; verify a different module's output voltage before connecting it.
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int PIR_PIN = 27;
+
+PxServ client(PXSERV_API_KEY);
+bool previousMotion = false;
+unsigned long eventCount = 0;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PIR_PIN, INPUT);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+  Serial.println("Waiting for PIR warm-up...");
+  delay(30000);
+}
+
+void loop() {
+  bool motion = digitalRead(PIR_PIN) == HIGH;
+
+  if (motion != previousMotion) {
+    client.setData("motion/status", motion ? "1" : "0");
+    if (motion) {
+      eventCount++;
+      client.setData("motion/event-count", String(eventCount));
+      Serial.println("Motion detected");
+    } else {
+      Serial.println("Motion ended");
+    }
+    previousMotion = motion;
+  }
+  delay(100);
+}
+```
+
+## Test
+
+Wait for the 30-second warm-up, then move in front of the sensor. The status should become `1` and the event count increase. Reduce sensitivity or move the sensor away from heat and sunlight if it triggers continuously.
+
+Reference: [Adafruit PIR guide](https://learn.adafruit.com/pir-passive-infrared-proximity-motion-sensor/using-a-pir-w-arduino)
+

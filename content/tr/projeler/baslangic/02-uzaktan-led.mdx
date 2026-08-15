@@ -1,0 +1,90 @@
+---
+title: Uzaktan LED Kontrolü
+description: PxServ'deki bir değeri okuyarak ESP32 üzerindeki LED'i uzaktan açıp kapatın.
+---
+
+# 2. Uzaktan LED Kontrolü
+
+PxServ panelindeki `0` veya `1` değerini ESP32 ile okuyup harici bir LED'e uygulayın. Böylece buluttan cihaza veri yönünü ve `getData()` metodunu öğrenirsiniz.
+
+**Seviye:** Başlangıç · **Süre:** 20 dakika
+
+## Kazanımlar
+
+- PxServ'den tek bir anahtarı okumak
+- Dönen metin değerini dijital çıkışa çevirmek
+- LED'i akım sınırlama direnciyle güvenli bağlamak
+
+## Gerekenler
+
+- ESP32 DevKit V1
+- 1 LED
+- 220–330 Ω direnç
+- Breadboard ve jumper kablolar
+
+## Bağlantılar
+
+| LED tarafı        | Bağlantı                           |
+| ----------------- | ---------------------------------- |
+| Anot, uzun bacak  | GPIO 23 üzerinden 220–330 Ω direnç |
+| Katot, kısa bacak | GND                                |
+
+## PxServ anahtarları
+
+| Anahtar             | Değer     | Anlamı                       |
+| ------------------- | --------- | ---------------------------- |
+| `uzaktan-led/komut` | `0` / `1` | LED kapalı / açık            |
+| `uzaktan-led/durum` | `0` / `1` | Cihazın uyguladığı son durum |
+
+Kodu çalıştırmadan önce panelde `uzaktan-led/komut` anahtarını `0` değeriyle oluşturun.
+
+## Tam kod
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "wifi_ssid";
+const char* WIFI_PASSWORD = "wifi_sifre";
+const char* PXSERV_API_KEY = "pxserv_api_anahtariniz";
+const int LED_PIN = 23;
+
+PxServ client(PXSERV_API_KEY);
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  PxServ::Callback result = client.getData(
+    "uzaktan-led/komut"
+  );
+
+  if (result.status == 200) {
+    bool ledOn = result.data == "1";
+    digitalWrite(LED_PIN, ledOn ? HIGH : LOW);
+    client.setData("uzaktan-led/durum", ledOn ? "1" : "0");
+    Serial.println(ledOn ? "LED acik" : "LED kapali");
+  } else {
+    Serial.print("Komut okunamadi: ");
+    Serial.println(result.message);
+  }
+
+  delay(2000);
+}
+```
+
+## Çalıştırma ve test
+
+1. Devreyi kurup kodu yükleyin.
+2. PxServ'deki komut değerini `1` yapın; LED en geç iki saniye içinde yanmalıdır.
+3. Değeri `0` yapın; LED sönmelidir.
+4. `durum` anahtarının cihazın gerçekten uyguladığı değeri gösterdiğini doğrulayın.
+
+## Sorun giderme
+
+- LED yanmıyorsa bacak yönünü ve seri direnci kontrol edin.
+- Komut okunamıyorsa anahtarın tam adını ve API anahtarını karşılaştırın.
+- Röle kullanmak isterseniz rölenin aktif-LOW olabileceğini ve LED kodunun doğrudan uygun olmayabileceğini unutmayın.

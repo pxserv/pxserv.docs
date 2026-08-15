@@ -1,0 +1,93 @@
+---
+title: Automatic Night Light
+description: Combine LDR data and a PxServ operating mode to control LED brightness automatically or manually.
+---
+
+# 1. Automatic Night Light
+
+Increase LED brightness as the room gets darker, or switch to a remotely controlled manual mode. This combines a local sensor and a cloud command in one predictable behavior.
+
+**Level:** Intermediate · **Time:** 40 minutes
+
+## Parts and wiring
+
+- ESP32, LDR, 10 kΩ resistor, LED, and 220–330 Ω resistor
+
+| Part | ESP32 connection |
+| --- | --- |
+| LDR measurement | `3V3 → LDR → GPIO34 → 10 kΩ → GND` |
+| LED anode | GPIO 23 through 220–330 Ω |
+| LED cathode | GND |
+
+## PxServ keys
+
+| Key | Value |
+| --- | --- |
+| `night-light/mode` | `automatic` or `manual` |
+| `night-light/manual-brightness` | `0–100` |
+| `night-light/light` | Measured percentage |
+| `night-light/brightness` | Applied percentage |
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int LDR_PIN = 34;
+const int LED_PIN = 23;
+
+PxServ client(PXSERV_API_KEY);
+String mode = "automatic";
+int manualBrightness = 0;
+unsigned long lastCommandAt = 0;
+unsigned long lastTelemetryAt = 0;
+
+void readCommands() {
+  PxServ::Callback modeResult = client.getData("night-light/mode");
+  if (modeResult.status == 200) mode = modeResult.data;
+
+  PxServ::Callback brightnessResult = client.getData(
+    "night-light/manual-brightness"
+  );
+  if (brightnessResult.status == 200) {
+    manualBrightness = constrain(brightnessResult.data.toInt(), 0, 100);
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
+  analogReadResolution(12);
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  unsigned long now = millis();
+  if (now - lastCommandAt >= 3000) {
+    lastCommandAt = now;
+    readCommands();
+  }
+
+  int rawLight = analogRead(LDR_PIN);
+  int lightPercent = constrain(map(rawLight, 0, 4095, 0, 100), 0, 100);
+  int brightness = mode == "manual" ? manualBrightness : 100 - lightPercent;
+  brightness = constrain(brightness, 0, 100);
+  analogWrite(LED_PIN, map(brightness, 0, 100, 0, 255));
+
+  if (now - lastTelemetryAt >= 10000) {
+    lastTelemetryAt = now;
+    client.setData("night-light/light", String(lightPercent));
+    client.setData("night-light/brightness", String(brightness));
+    client.setData("night-light/active-mode", mode);
+  }
+  delay(20);
+}
+```
+
+## Test
+
+Cover the LDR in automatic mode, then set manual mode and brightness `25`. A value outside `0–100` is safely constrained. If automatic behavior is reversed, swap the divider direction or remove `100 -` from the calculation.
+

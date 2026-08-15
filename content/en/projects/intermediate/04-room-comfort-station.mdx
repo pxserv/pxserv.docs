@@ -1,0 +1,68 @@
+---
+title: Room Comfort Station
+description: Calculate heat index from DHT22 data and publish a simple comfort classification.
+---
+
+# 4. Room Comfort Station
+
+Publish temperature, humidity, calculated heat index, and a readable comfort label. This separates raw measurements from derived information.
+
+**Level:** Intermediate · **Time:** 40 minutes
+
+## Requirements and wiring
+
+- ESP32 and DHT22 module
+- **DHT sensor library** and **Adafruit Unified Sensor**
+
+Connect VCC→3V3, GND→GND, and DATA→GPIO 4.
+
+## Complete sketch
+
+```cpp
+#include <PxServ.h>
+#include <DHT.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* PXSERV_API_KEY = "your_pxserv_api_key";
+const int DHT_PIN = 4;
+
+PxServ client(PXSERV_API_KEY);
+DHT dht(DHT_PIN, DHT22);
+
+String comfortLabel(float temperature, float humidity) {
+  if (temperature < 18) return "cool";
+  if (temperature > 27 || humidity > 70) return "warm-humid";
+  if (humidity < 30) return "dry";
+  return "comfortable";
+}
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+  PxServ::connectWifi(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void loop() {
+  float temperature = dht.readTemperature();
+  float humidity = dht.readHumidity();
+  if (isnan(temperature) || isnan(humidity)) {
+    client.setData("comfort/sensor-status", "error");
+    delay(5000);
+    return;
+  }
+
+  float heatIndex = dht.computeHeatIndex(temperature, humidity, false);
+  client.setData("comfort/temperature", String(temperature, 1));
+  client.setData("comfort/humidity", String(humidity, 1));
+  client.setData("comfort/heat-index", String(heatIndex, 1));
+  client.setData("comfort/status", comfortLabel(temperature, humidity));
+  client.setData("comfort/sensor-status", "normal");
+  delay(15000);
+}
+```
+
+## Test and limits
+
+Compare different rooms and verify invalid sensor data produces `error`. The labels are teaching thresholds, not a health or HVAC standard; document any thresholds you change.
+

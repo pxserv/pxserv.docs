@@ -1,6 +1,6 @@
 ---
 title: Project List
-description: A 25-project learning path from first maker build to production-minded IoT devices with PxServ and ESP32.
+description: A learning path from first maker build to production-minded IoT devices with PxServ and ESP32.
 asIndexPage: true
 ---
 
@@ -8,15 +8,52 @@ import { Callout } from "nextra/components";
 
 # Project List
 
-This section takes you from your first cloud-connected sensor to clear, production-minded device patterns through **25 practical projects**. Every project includes objectives, parts, a wiring table, PxServ keys, complete firmware examples, a test procedure, and troubleshooting or safety guidance.
+<div className="docs-section-heading">
+  <div>
+    This section takes you from your first cloud-connected sensor to clear,
+    production-minded device patterns through a practical learning sequence.
+    Every project includes objectives, parts, a wiring table, PxServ keys,
+    complete firmware examples, a test procedure, and troubleshooting notes.
+  </div>
+</div>
 
-## Learning path
+<div className="docs-feature-grid">
+  <a className="docs-feature-card" data-tone="arduino" href="/en/projects/beginner/">
+    <div className="docs-feature-top"><span className="docs-feature-icon">01</span><span className="docs-feature-arrow">→</span></div>
+    <h3>Beginner · 10 Projects</h3>
+    <div className="docs-feature-copy">Build your base with GPIO, basic sensors, setData(), and getData().</div>
+  </a>
 
-| Level                                      | Projects | Focus                                                    |
-| ------------------------------------------ | -------: | -------------------------------------------------------- |
-| [Beginner](/en/projects/beginner/)         |       10 | GPIO, basic sensors, `setData()`, and `getData()`        |
-| [Intermediate](/en/projects/intermediate/) |       10 | Multiple tasks, remote commands, calibration, and alarms |
-| [Advanced](/en/projects/advanced/)         |        5 | Hysteresis, safe states, telemetry, maps, and OTA        |
+<a
+  className="docs-feature-card"
+  data-tone="typescript"
+  href="/en/projects/intermediate/"
+>
+  <div className="docs-feature-top">
+    <span className="docs-feature-icon">02</span>
+    <span className="docs-feature-arrow">→</span>
+  </div>
+  <h3>Intermediate · 10 Projects</h3>
+  <div className="docs-feature-copy">
+    Move to multi-task loops, remote commands, calibration, and alarms.
+  </div>
+</a>
+
+  <a className="docs-feature-card" data-tone="rust" href="/en/projects/advanced/">
+    <div className="docs-feature-top"><span className="docs-feature-icon">03</span><span className="docs-feature-arrow">→</span></div>
+    <h3>Advanced · 5 Projects</h3>
+    <div className="docs-feature-copy">Practice safe states, hysteresis, richer telemetry, maps, and OTA flows.</div>
+  </a>
+</div>
+
+<div className="docs-section-heading docs-section-heading--compact">
+  <h2>One path across all project levels</h2>
+  <div>
+    The sequence is intentionally balanced: 10 beginner, 10 intermediate, and 5
+    advanced projects. You can follow end-to-end or jump directly to the level
+    that matches your current needs.
+  </div>
+</div>
 
 <Callout type="info">
   <strong>Common development board</strong>
